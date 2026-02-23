@@ -39,17 +39,13 @@ export function SpecEditor({ projectId }: { projectId: string }) {
       toast.error("Please enter a task description first.");
       return;
     }
-    if (!apiKey?.trim()) {
-      toast.error("Please set your OpenAI API key in the sidebar first.");
-      return;
-    }
 
     setIsRefining(true);
     try {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-      if (apiKey) headers["x-api-key"] = apiKey;
+      if (apiKey?.trim()) headers["x-api-key"] = apiKey;
 
       const res = await fetch("/api/ai/refine-spec", {
         method: "POST",
@@ -126,8 +122,9 @@ export function SpecEditor({ projectId }: { projectId: string }) {
           />
           <div className="flex justify-end">
             <Button
+              type="button"
               onClick={handleRefine}
-              disabled={isRefining || !freeformText.trim()}
+              disabled={isRefining}
             >
               {isRefining ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

@@ -82,6 +82,7 @@ export interface Run {
   evalIds: string[];
   specVersion: number;
   status: RunStatus;
+  label?: string;
   createdAt: string;
 }
 

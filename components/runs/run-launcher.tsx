@@ -62,10 +62,6 @@ export function RunLauncher({
       toast.error("Select a prompt and ensure you have dataset cases.");
       return;
     }
-    if (!apiKey?.trim()) {
-      toast.error("Please set your OpenAI API key in the sidebar first.");
-      return;
-    }
 
     const prompt = prompts.find((p) => p.id === selectedPromptId);
     if (!prompt) return;

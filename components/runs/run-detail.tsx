@@ -4,9 +4,10 @@ import { useState } from "react";
 import { ArrowLeft, Tag, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkbench } from "@/lib/store";
-import type { Run, SpecContent } from "@/lib/types";
+import type { Run, RunResult, SpecContent } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -37,11 +38,36 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
     getEvalsForProject,
     getLatestSpec,
     addSpecVersion,
+    updateRunResult,
     data,
     apiKey,
   } = useWorkbench();
 
   const [isImproving, setIsImproving] = useState(false);
+  const [editingLabelsResultId, setEditingLabelsResultId] = useState<
+    string | null
+  >(null);
+  const [labelsEditValue, setLabelsEditValue] = useState("");
+
+  function startInlineLabelsEdit(r: RunResult) {
+    setEditingLabelsResultId(r.id);
+    setLabelsEditValue(r.labels.join(", "));
+  }
+
+  function saveInlineLabels() {
+    if (editingLabelsResultId === null) return;
+    const result = results.find((r) => r.id === editingLabelsResultId);
+    if (result) {
+      const labels = labelsEditValue
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      updateRunResult({ ...result, labels });
+      toast.success("Labels updated");
+    }
+    setEditingLabelsResultId(null);
+    setLabelsEditValue("");
+  }
 
   const results = getRunResults(run.id);
   const evalResults = getEvalResultsForRun(run.id);
@@ -73,10 +99,6 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
     const latestSpec = getLatestSpec(projectId);
     if (!latestSpec) {
       toast.error("No spec found to improve.");
-      return;
-    }
-    if (!apiKey?.trim()) {
-      toast.error("Please set your OpenAI API key in the sidebar first.");
       return;
     }
 
@@ -222,6 +244,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Input</TableHead>
                 <TableHead>Output</TableHead>
+                <TableHead className="min-w-[120px]">Label</TableHead>
                 {activeEvalDefs.map((e) => (
                   <TableHead key={e.id} className="w-24 text-center">
                     {e.name}
@@ -241,10 +264,25 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {i + 1}
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate font-mono text-xs">
-                      {caseData
-                        ? JSON.stringify(caseData.input).slice(0, 80)
-                        : "N/A"}
+                    <TableCell className="max-w-[200px]">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="block truncate font-mono text-xs">
+                              {caseData
+                                ? JSON.stringify(caseData.input).slice(0, 80)
+                                : "N/A"}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-lg">
+                            <pre className="whitespace-pre-wrap text-xs">
+                              {caseData
+                                ? JSON.stringify(caseData.input, null, 2)
+                                : "N/A"}
+                            </pre>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </TableCell>
                     <TableCell className="max-w-[300px]">
                       <TooltipProvider>
@@ -260,7 +298,60 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                             </pre>
                           </TooltipContent>
                         </Tooltip>
-                      </TooltipProvider>
+                          </TooltipProvider>
+                    </TableCell>
+                    <TableCell
+                      className="min-w-[120px]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {editingLabelsResultId === r.id ? (
+                        <Input
+                          value={labelsEditValue}
+                          onChange={(e) => setLabelsEditValue(e.target.value)}
+                          onBlur={saveInlineLabels}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveInlineLabels();
+                            if (e.key === "Escape") {
+                              setEditingLabelsResultId(null);
+                              setLabelsEditValue("");
+                            }
+                          }}
+                          placeholder="label1, label2"
+                          className="h-8 text-xs"
+                          style={{ minWidth: 120 }}
+                          autoFocus
+                        />
+                      ) : (
+                        <div
+                          className="flex min-h-8 flex-wrap items-center gap-1 rounded border border-transparent px-2 py-1 hover:border-input"
+                          onClick={() => startInlineLabelsEdit(r)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              startInlineLabelsEdit(r);
+                            }
+                          }}
+                          aria-label="Edit labels"
+                        >
+                          {r.labels.length > 0 ? (
+                            r.labels.map((l) => (
+                              <Badge
+                                key={l}
+                                variant="outline"
+                                className="text-xs"
+                              >
+                                {l}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              Click to add labels
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </TableCell>
                     {activeEvalDefs.map((e) => {
                       const er = caseEvals.find((ce) => ce.evalId === e.id);

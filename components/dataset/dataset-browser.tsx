@@ -7,6 +7,7 @@ import { useWorkbench } from "@/lib/store";
 import type { DatasetCase } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -15,6 +16,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { CaseEditorDialog } from "./case-editor";
 import { GenerateDialog } from "./generate-dialog";
 
@@ -32,17 +39,40 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
   const latestSpec = getLatestSpec(projectId);
 
   const [editingCase, setEditingCase] = useState<DatasetCase | null>(null);
+  const [editingLabelsCaseId, setEditingLabelsCaseId] = useState<string | null>(
+    null,
+  );
+  const [labelsEditValue, setLabelsEditValue] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  async function handleGenerate(count: number, instructions: string) {
+  function startInlineLabelsEdit(c: DatasetCase) {
+    setEditingLabelsCaseId(c.id);
+    setLabelsEditValue(c.labels.join(", "));
+  }
+
+  function saveInlineLabels() {
+    if (editingLabelsCaseId === null) return;
+    const next = cases.find((x) => x.id === editingLabelsCaseId);
+    if (!next) return;
+    const labels = labelsEditValue
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    updateDatasetCase({ ...next, labels });
+    setEditingLabelsCaseId(null);
+    setLabelsEditValue("");
+    toast.success("Labels updated");
+  }
+
+  async function handleGenerate(
+    count: number,
+    instructions: string,
+    datasetLabels: string[],
+  ) {
     if (!latestSpec) {
       toast.error("Create a spec first before generating dataset cases.");
-      return;
-    }
-    if (!apiKey?.trim()) {
-      toast.error("Please set your OpenAI API key in the sidebar first.");
       return;
     }
 
@@ -56,7 +86,12 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
       const res = await fetch("/api/ai/generate-dataset", {
         method: "POST",
         headers,
-        body: JSON.stringify({ spec: latestSpec.content, count, instructions }),
+        body: JSON.stringify({
+          spec: latestSpec.content,
+          count,
+          instructions,
+          datasetLabels: datasetLabels.length ? datasetLabels : undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -175,8 +210,21 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {i + 1}
                   </TableCell>
-                  <TableCell className="max-w-md truncate font-mono text-xs">
-                    {JSON.stringify(c.input).slice(0, 100)}
+                  <TableCell className="max-w-md">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="block truncate font-mono text-xs">
+                            {JSON.stringify(c.input).slice(0, 100)}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-lg">
+                          <pre className="whitespace-pre-wrap text-xs">
+                            {JSON.stringify(c.input, null, 2)}
+                          </pre>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="text-xs">
@@ -186,14 +234,54 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
                   <TableCell className="font-mono text-xs">
                     v{c.createdFromSpecVersion}
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {c.labels.map((l) => (
-                        <Badge key={l} variant="outline" className="text-xs">
-                          {l}
-                        </Badge>
-                      ))}
-                    </div>
+                  <TableCell
+                    className="min-w-[120px]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {editingLabelsCaseId === c.id ? (
+                      <Input
+                        value={labelsEditValue}
+                        onChange={(e) => setLabelsEditValue(e.target.value)}
+                        onBlur={saveInlineLabels}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveInlineLabels();
+                          if (e.key === "Escape") {
+                            setEditingLabelsCaseId(null);
+                            setLabelsEditValue("");
+                          }
+                        }}
+                        placeholder="label1, label2"
+                        className="h-8 text-xs"
+                        style={{ minWidth: 120 }}
+                        autoFocus
+                      />
+                    ) : (
+                      <div
+                        className="flex min-h-8 flex-wrap items-center gap-1 rounded border border-transparent px-2 py-1 hover:border-input"
+                        onClick={() => startInlineLabelsEdit(c)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            startInlineLabelsEdit(c);
+                          }
+                        }}
+                        aria-label="Edit labels"
+                      >
+                        {c.labels.length > 0 ? (
+                          c.labels.map((l) => (
+                            <Badge key={l} variant="outline" className="text-xs">
+                              {l}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Click to add labels
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <button
@@ -240,7 +328,15 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
       <GenerateDialog
         open={isGenerateOpen}
         onOpenChange={setIsGenerateOpen}
-        onGenerate={handleGenerate}
+        onGenerate={(count, instructions) =>
+          handleGenerate(
+            count,
+            instructions,
+            Array.from(
+              new Set(cases.flatMap((c) => c.labels).filter(Boolean)),
+            ) as string[],
+          )
+        }
         isGenerating={isGenerating}
       />
     </div>

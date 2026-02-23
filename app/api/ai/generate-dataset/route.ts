@@ -7,13 +7,23 @@ const CASES_RESPONSE_PREFIX =
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-api-key") || undefined;
-  const { spec, count = 5, instructions = "" } = await req.json();
+  const {
+    spec,
+    count = 5,
+    instructions = "",
+    datasetLabels,
+  } = await req.json();
 
   if (!spec) {
     return Response.json({ error: "spec is required" }, { status: 400 });
   }
 
-  const prompt = `${CASES_RESPONSE_PREFIX}Given this spec:\n${JSON.stringify(spec, null, 2)}\n\nGenerate ${count} diverse test cases.${instructions ? `\n\nAdditional instructions: ${instructions}` : ""}`;
+  const labelContext =
+    Array.isArray(datasetLabels) && datasetLabels.length > 0
+      ? `\n\nExisting dataset labels to take into account (align or diversify with these): ${datasetLabels.join(", ")}`
+      : "";
+
+  const prompt = `${CASES_RESPONSE_PREFIX}Given this spec:\n${JSON.stringify(spec, null, 2)}\n\nGenerate ${count} diverse test cases.${labelContext}${instructions ? `\n\nAdditional instructions: ${instructions}` : ""}`;
 
   const { text } = await generateText({
     model: getModel(apiKey),

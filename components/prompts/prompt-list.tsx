@@ -31,10 +31,6 @@ export function PromptList({ projectId }: { projectId: string }) {
       toast.error("Create a spec first before generating a prompt.");
       return;
     }
-    if (!apiKey?.trim()) {
-      toast.error("Please set your OpenAI API key in the sidebar first.");
-      return;
-    }
 
     setIsGenerating(true);
     try {
