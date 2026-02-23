@@ -1,0 +1,164 @@
+"use client";
+
+import { useState } from "react";
+import { Sparkles, Loader2, Trash2, Eye, Pencil } from "lucide-react";
+import { toast } from "sonner";
+import { useWorkbench } from "@/lib/store";
+import type { Prompt } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PromptViewer } from "./prompt-viewer";
+
+export function PromptList({ projectId }: { projectId: string }) {
+  const {
+    getPromptsForProject,
+    addPrompt,
+    updatePrompt,
+    deletePrompt,
+    getLatestSpec,
+    apiKey,
+  } = useWorkbench();
+
+  const prompts = getPromptsForProject(projectId);
+  const latestSpec = getLatestSpec(projectId);
+
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
+
+  async function handleGenerate() {
+    if (!latestSpec) {
+      toast.error("Create a spec first before generating a prompt.");
+      return;
+    }
+    if (!apiKey?.trim()) {
+      toast.error("Please set your OpenAI API key in the sidebar first.");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (apiKey) headers["x-api-key"] = apiKey;
+
+      const res = await fetch("/api/ai/generate-prompt", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ spec: latestSpec.content }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "Failed to generate prompt");
+      }
+
+      const data = await res.json();
+      const newPrompt: Prompt = {
+        id: crypto.randomUUID(),
+        projectId,
+        specVersion: latestSpec.version,
+        name: `Prompt v${prompts.length + 1}`,
+        content: data.prompt,
+        createdAt: new Date().toISOString(),
+      };
+      addPrompt(newPrompt);
+      setSelectedPrompt(newPrompt);
+      toast.success("Prompt generated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  if (selectedPrompt) {
+    return (
+      <PromptViewer
+        prompt={selectedPrompt}
+        onBack={() => setSelectedPrompt(null)}
+        onUpdate={(updated) => {
+          updatePrompt(updated);
+          setSelectedPrompt(updated);
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-border px-6 py-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Prompts</h2>
+          <p className="text-sm text-muted-foreground">
+            {prompts.length} prompt{prompts.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <Button onClick={handleGenerate} disabled={isGenerating}>
+          {isGenerating ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 h-4 w-4" />
+          )}
+          {isGenerating ? "Generating..." : "Generate from Spec"}
+        </Button>
+      </div>
+
+      {/* Prompt cards */}
+      <div className="flex-1 overflow-auto p-6">
+        {prompts.length === 0 ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">No prompts yet.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Generate a prompt from your spec to get started.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {prompts.map((p) => (
+              <Card
+                key={p.id}
+                className="cursor-pointer transition-colors hover:bg-secondary/30"
+                onClick={() => setSelectedPrompt(p)}
+              >
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">
+                    {p.name}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs font-mono">
+                      spec v{p.specVersion}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(p.createdAt).toLocaleDateString()}
+                    </span>
+                    <button
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deletePrompt(p.id);
+                        toast.success("Prompt deleted");
+                      }}
+                      aria-label="Delete prompt"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="line-clamp-3 font-mono text-xs text-muted-foreground">
+                    {p.content.slice(0, 200)}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

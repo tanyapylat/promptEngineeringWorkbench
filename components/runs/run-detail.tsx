@@ -1,0 +1,321 @@
+"use client";
+
+import { useState } from "react";
+import { ArrowLeft, Tag, Sparkles, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { useWorkbench } from "@/lib/store";
+import type { Run, SpecContent } from "@/lib/types";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+interface RunDetailProps {
+  run: Run;
+  projectId: string;
+  onBack: () => void;
+}
+
+export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
+  const {
+    getRunResults,
+    getEvalResultsForRun,
+    getDatasetForProject,
+    getEvalsForProject,
+    getLatestSpec,
+    addSpecVersion,
+    data,
+    apiKey,
+  } = useWorkbench();
+
+  const [isImproving, setIsImproving] = useState(false);
+
+  const results = getRunResults(run.id);
+  const evalResults = getEvalResultsForRun(run.id);
+  const cases = getDatasetForProject(projectId);
+  const evals = getEvalsForProject(projectId);
+  const prompt = data.prompts.find((p) => p.id === run.promptId);
+
+  // Aggregate stats
+  const evalsByDef = new Map<
+    string,
+    { scores: number[]; name: string; mode: string }
+  >();
+  for (const er of evalResults) {
+    const evalDef = evals.find((e) => e.id === er.evalId);
+    if (!evalDef) continue;
+    if (!evalsByDef.has(er.evalId)) {
+      evalsByDef.set(er.evalId, {
+        scores: [],
+        name: evalDef.name,
+        mode: evalDef.scoreMode,
+      });
+    }
+    evalsByDef.get(er.evalId)!.scores.push(er.score);
+  }
+
+  const activeEvalDefs = evals.filter((e) => run.evalIds.includes(e.id));
+
+  async function handleImproveSpec() {
+    const latestSpec = getLatestSpec(projectId);
+    if (!latestSpec) {
+      toast.error("No spec found to improve.");
+      return;
+    }
+    if (!apiKey?.trim()) {
+      toast.error("Please set your OpenAI API key in the sidebar first.");
+      return;
+    }
+
+    setIsImproving(true);
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (apiKey) headers["x-api-key"] = apiKey;
+
+      const resultsData = results.map((r) => {
+        const caseData = cases.find((c) => c.id === r.datasetCaseId);
+        const caseEvalResults = evalResults.filter(
+          (er) => er.runResultId === r.id,
+        );
+        return {
+          input: caseData?.input,
+          output: r.output,
+          labels: r.labels,
+          evalScores: caseEvalResults.map((er) => ({
+            evalName: evals.find((e) => e.id === er.evalId)?.name ?? "unknown",
+            score: er.score,
+            reason: er.reason,
+          })),
+        };
+      });
+
+      const res = await fetch("/api/ai/improve-spec", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          spec: latestSpec.content,
+          results: resultsData,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to improve spec");
+
+      const resData = await res.json();
+      const improved: SpecContent = {
+        task_description: resData.spec.task_description,
+        input_description: resData.spec.input_description,
+        output_description: resData.spec.output_description,
+        constraints: resData.spec.constraints,
+        examples: resData.spec.examples,
+      };
+
+      addSpecVersion(
+        projectId,
+        improved,
+        `Improved from run results. Notes: ${resData.spec.improvement_notes}`,
+      );
+      toast.success(
+        "Improved spec created as a new version. Switch to the Specs section to review.",
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Improvement failed");
+    } finally {
+      setIsImproving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border px-6 py-4">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Back
+          </Button>
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              Run Results
+            </h2>
+            <div className="flex items-center gap-2 mt-0.5">
+              <Badge variant="secondary" className="text-xs">
+                {run.status}
+              </Badge>
+              <span className="text-xs text-muted-foreground font-mono">
+                spec v{run.specVersion}
+              </span>
+              {prompt && (
+                <span className="text-xs text-muted-foreground">
+                  {prompt.name}
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {new Date(run.createdAt).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleImproveSpec}
+          disabled={isImproving || results.length === 0}
+        >
+          {isImproving ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 h-4 w-4" />
+          )}
+          {isImproving ? "Improving..." : "Improve Spec from Results"}
+        </Button>
+      </div>
+
+      <div className="flex-1 overflow-auto p-6">
+        <div className="flex flex-col gap-6">
+          {/* Aggregated stats */}
+          {evalsByDef.size > 0 && (
+            <div className="flex flex-wrap gap-3">
+              {Array.from(evalsByDef.entries()).map(
+                ([evalId, { scores, name, mode }]) => {
+                  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+                  const display =
+                    mode === "pass_fail"
+                      ? `${Math.round(avg * 100)}% pass`
+                      : `${avg.toFixed(1)} / 5`;
+
+                  return (
+                    <Card key={evalId} className="min-w-[140px]">
+                      <CardContent className="py-3">
+                        <p className="text-xs text-muted-foreground">{name}</p>
+                        <p className="text-xl font-semibold text-foreground">
+                          {display}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {scores.length} scored
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                },
+              )}
+            </div>
+          )}
+
+          {/* Results table */}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">#</TableHead>
+                <TableHead>Input</TableHead>
+                <TableHead>Output</TableHead>
+                {activeEvalDefs.map((e) => (
+                  <TableHead key={e.id} className="w-24 text-center">
+                    {e.name}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {results.map((r, i) => {
+                const caseData = cases.find((c) => c.id === r.datasetCaseId);
+                const caseEvals = evalResults.filter(
+                  (er) => er.runResultId === r.id,
+                );
+
+                return (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {i + 1}
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate font-mono text-xs">
+                      {caseData
+                        ? JSON.stringify(caseData.input).slice(0, 80)
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell className="max-w-[300px]">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="block truncate font-mono text-xs">
+                              {r.output.slice(0, 120)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="max-w-lg">
+                            <pre className="whitespace-pre-wrap text-xs">
+                              {r.output}
+                            </pre>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </TableCell>
+                    {activeEvalDefs.map((e) => {
+                      const er = caseEvals.find((ce) => ce.evalId === e.id);
+                      if (!er) {
+                        return (
+                          <TableCell
+                            key={e.id}
+                            className="text-center text-xs text-muted-foreground"
+                          >
+                            --
+                          </TableCell>
+                        );
+                      }
+                      const isGood =
+                        e.scoreMode === "pass_fail"
+                          ? er.score === 1
+                          : er.score >= 4;
+
+                      return (
+                        <TableCell key={e.id} className="text-center">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                                    isGood
+                                      ? "bg-green-50 text-green-700"
+                                      : "bg-red-50 text-red-700"
+                                  }`}
+                                >
+                                  {e.scoreMode === "pass_fail"
+                                    ? er.score === 1
+                                      ? "Pass"
+                                      : "Fail"
+                                    : `${er.score}/5`}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent
+                                side="bottom"
+                                className="max-w-sm"
+                              >
+                                <p className="text-xs">{er.reason}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </div>
+  );
+}
