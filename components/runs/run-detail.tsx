@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ArrowLeft, Tag, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
 import { useWorkbench } from "@/lib/store";
 import type { Run, RunResult, SpecContent } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -126,7 +127,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
         };
       });
 
-      const res = await fetch("/api/ai/improve-spec", {
+      const res = await apiFetch("/api/ai/improve-spec", {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -134,8 +135,6 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
           results: resultsData,
         }),
       });
-
-      if (!res.ok) throw new Error("Failed to improve spec");
 
       const resData = await res.json();
       const improved: SpecContent = {
@@ -154,8 +153,8 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
       toast.success(
         "Improved spec created as a new version. Switch to the Specs section to review.",
       );
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Improvement failed");
+    } catch {
+      // apiFetch already shows toast
     } finally {
       setIsImproving(false);
     }

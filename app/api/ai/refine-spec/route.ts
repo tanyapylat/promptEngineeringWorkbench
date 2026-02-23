@@ -14,8 +14,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const { output } = await generateText({
-    model: getModel(apiKey),
+  try {
+    const { output } = await generateText({
+      model: getModel(apiKey),
     system: REFINE_SPEC_SYSTEM,
     prompt: freeformText,
     output: Output.object({
@@ -32,7 +33,12 @@ export async function POST(req: Request) {
         ),
       }),
     }),
-  });
+    });
 
-  return Response.json({ spec: output });
+    return Response.json({ spec: output });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to refine spec";
+    return Response.json({ error: message }, { status: 400 });
+  }
 }

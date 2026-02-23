@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkbench } from "@/lib/store";
+import { apiFetch } from "@/lib/api";
 import type { SpecContent } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,24 +48,19 @@ export function SpecEditor({ projectId }: { projectId: string }) {
       };
       if (apiKey?.trim()) headers["x-api-key"] = apiKey;
 
-      const res = await fetch("/api/ai/refine-spec", {
+      const res = await apiFetch("/api/ai/refine-spec", {
         method: "POST",
         headers,
         body: JSON.stringify({ freeformText }),
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Failed to refine spec");
-      }
 
       const data = await res.json();
       const content: SpecContent = data.spec;
       const newVersion = addSpecVersion(projectId, content, freeformText);
       setSelectedVersionId(newVersion.id);
       toast.success(`Spec v${newVersion.version} created`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Refinement failed");
+    } catch {
+      // apiFetch already shows toast
     } finally {
       setIsRefining(false);
     }

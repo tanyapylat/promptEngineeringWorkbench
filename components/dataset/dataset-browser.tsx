@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus, Sparkles, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
 import { useWorkbench } from "@/lib/store";
 import type { DatasetCase } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,7 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
       };
       if (apiKey) headers["x-api-key"] = apiKey;
 
-      const res = await fetch("/api/ai/generate-dataset", {
+      const res = await apiFetch("/api/ai/generate-dataset", {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -93,11 +94,6 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
           datasetLabels: datasetLabels.length ? datasetLabels : undefined,
         }),
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Failed to generate dataset");
-      }
 
       const data = await res.json();
       const newCases: DatasetCase[] = data.cases.map(
@@ -116,8 +112,8 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
       addDatasetCases(newCases);
       toast.success(`Generated ${newCases.length} cases`);
       setIsGenerateOpen(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Generation failed");
+    } catch {
+      // apiFetch already shows toast
     } finally {
       setIsGenerating(false);
     }

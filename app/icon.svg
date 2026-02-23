@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Dark navy background -->
+  <rect width="32" height="32" rx="6" fill="#0F1629"/>
+
+  <!-- Circular arcs forming a loop, gaps at nodes -->
+  <!-- Top arc: left-node to top-node, going clockwise = top portion -->
+  <!-- Circle center (16,16), radius 11 -->
+  <!-- Top arc (cyan): from ~210deg to ~330deg going clockwise = top segment -->
+  <!-- Let's use explicit math: node positions on r=11 circle -->
+  <!-- Top:    16, 5    (270deg) -->
+  <!-- Right:  27, 16   (0deg)   -->
+  <!-- Bottom: 16, 27   (90deg)  -->
+  <!-- Left:   5,  16   (180deg) -->
+
+  <!-- Arc top’right (cyan) -->
+  <path d="M 16 5.5 A 10.5 10.5 0 0 1 26.5 16" fill="none" stroke="#00E5CC" stroke-width="2" stroke-linecap="round"/>
+  <!-- Arc right’bottom (violet) -->
+  <path d="M 26.5 16 A 10.5 10.5 0 0 1 16 26.5" fill="none" stroke="#9D72FF" stroke-width="2" stroke-linecap="round"/>
+  <!-- Arc bottom’left (cyan dim) -->
+  <path d="M 16 26.5 A 10.5 10.5 0 0 1 5.5 16" fill="none" stroke="#00E5CC" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+  <!-- Arc left’top (violet dim)  with arrowhead at end -->
+  <path d="M 5.5 16 A 10.5 10.5 0 0 1 16 5.5" fill="none" stroke="#9D72FF" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+
+  <!-- Arrowhead at top node pointing clockwise (rightward) -->
+  <polyline points="14.2,4.4 16,5.5 14.8,7.1" fill="none" stroke="#00E5CC" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 4 nodes -->
+  <circle cx="16" cy="5.5"  r="2" fill="#0F1629" stroke="#00E5CC" stroke-width="1.5"/>
+  <circle cx="26.5" cy="16" r="2" fill="#0F1629" stroke="#9D72FF" stroke-width="1.5"/>
+  <circle cx="16" cy="26.5" r="2" fill="#0F1629" stroke="#00E5CC" stroke-width="1.5" opacity="0.6"/>
+  <circle cx="5.5" cy="16"  r="2" fill="#0F1629" stroke="#9D72FF" stroke-width="1.5" opacity="0.6"/>
+
+  <!-- PD initials centered -->
+  <text x="16" y="19.5" text-anchor="middle"
+        font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
+        font-weight="900" font-size="8.5" fill="#FFFFFF" letter-spacing="-0.3">PD</text>
+</svg>

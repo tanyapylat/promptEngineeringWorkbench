@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sparkles, Loader2, Trash2, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkbench } from "@/lib/store";
+import { apiFetch } from "@/lib/api";
 import type { Prompt } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,16 +40,11 @@ export function PromptList({ projectId }: { projectId: string }) {
       };
       if (apiKey) headers["x-api-key"] = apiKey;
 
-      const res = await fetch("/api/ai/generate-prompt", {
+      const res = await apiFetch("/api/ai/generate-prompt", {
         method: "POST",
         headers,
         body: JSON.stringify({ spec: latestSpec.content }),
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Failed to generate prompt");
-      }
 
       const data = await res.json();
       const newPrompt: Prompt = {
@@ -62,8 +58,8 @@ export function PromptList({ projectId }: { projectId: string }) {
       addPrompt(newPrompt);
       setSelectedPrompt(newPrompt);
       toast.success("Prompt generated");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Generation failed");
+    } catch {
+      // apiFetch already shows toast
     } finally {
       setIsGenerating(false);
     }

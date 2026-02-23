@@ -7,6 +7,8 @@ export async function POST(req: Request) {
   const apiKey = req.headers.get("x-api-key") || undefined;
   const { spec, results } = await req.json();
 
+  console.log("[improve-spec] payload:\n", JSON.stringify({ spec, results }, null, 2));
+
   if (!spec || !results) {
     return Response.json(
       { error: "spec and results are required" },
@@ -21,8 +23,9 @@ export async function POST(req: Request) {
     JSON.stringify(results, null, 2),
   ].join("\n");
 
-  const { output } = await generateText({
-    model: getModel(apiKey),
+  try {
+    const { output } = await generateText({
+      model: getModel(apiKey),
     system: IMPROVE_SPEC_SYSTEM,
     prompt,
     output: Output.object({
@@ -40,7 +43,12 @@ export async function POST(req: Request) {
         improvement_notes: z.string(),
       }),
     }),
-  });
+    });
 
-  return Response.json({ spec: output });
+    return Response.json({ spec: output });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to improve spec";
+    return Response.json({ error: message }, { status: 400 });
+  }
 }

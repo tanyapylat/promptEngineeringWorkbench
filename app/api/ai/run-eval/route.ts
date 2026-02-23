@@ -24,8 +24,9 @@ export async function POST(req: Request) {
     `\n### Actual Output\n${actualOutput}`,
   ].join("\n");
 
-  const { output } = await generateText({
-    model: getModel(apiKey),
+  try {
+    const { output } = await generateText({
+      model: getModel(apiKey),
     system: RUN_EVAL_SYSTEM,
     prompt,
     output: Output.object({
@@ -34,10 +35,15 @@ export async function POST(req: Request) {
         reason: z.string(),
       }),
     }),
-  });
+    });
 
-  return Response.json({
-    score: output?.score ?? 0,
-    reason: output?.reason ?? "No evaluation result",
-  });
+    return Response.json({
+      score: output?.score ?? 0,
+      reason: output?.reason ?? "No evaluation result",
+    });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Evaluation failed";
+    return Response.json({ error: message }, { status: 400 });
+  }
 }

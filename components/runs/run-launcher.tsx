@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Play, Loader2, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
 import { useWorkbench } from "@/lib/store";
 import type { Run, RunResult, EvalResult } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -89,7 +90,7 @@ export function RunLauncher({
       // Run prompt on each case
       const results: RunResult[] = [];
       for (const c of cases) {
-        const res = await fetch("/api/ai/run-prompt", {
+        const res = await apiFetch("/api/ai/run-prompt", {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -97,8 +98,6 @@ export function RunLauncher({
             input: c.input,
           }),
         });
-
-        if (!res.ok) throw new Error("Prompt execution failed");
 
         const data = await res.json();
         results.push({
@@ -149,9 +148,9 @@ export function RunLauncher({
 
       updateRun({ ...run, status: "completed" });
       toast.success(`Run completed: ${results.length} cases processed`);
-    } catch (err) {
+    } catch {
       updateRun({ ...run, status: "failed" });
-      toast.error(err instanceof Error ? err.message : "Run failed");
+      // apiFetch already shows toast
     } finally {
       setIsRunning(false);
     }

@@ -13,11 +13,17 @@ export async function POST(req: Request) {
     );
   }
 
-  const { text } = await generateText({
-    model: getModel(apiKey),
+  try {
+    const { text } = await generateText({
+      model: getModel(apiKey),
     system: `${RUN_PROMPT_SYSTEM}\n\n---\n\n${systemPrompt}`,
     prompt: typeof input === "string" ? input : JSON.stringify(input, null, 2),
-  });
+    });
 
-  return Response.json({ output: text });
+    return Response.json({ output: text });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Prompt execution failed";
+    return Response.json({ error: message }, { status: 400 });
+  }
 }

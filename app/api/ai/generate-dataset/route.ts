@@ -25,45 +25,51 @@ export async function POST(req: Request) {
 
   const prompt = `${CASES_RESPONSE_PREFIX}Given this spec:\n${JSON.stringify(spec, null, 2)}\n\nGenerate ${count} diverse test cases.${labelContext}${instructions ? `\n\nAdditional instructions: ${instructions}` : ""}`;
 
-  const { text } = await generateText({
-    model: getModel(apiKey),
-    system: GENERATE_DATASET_SYSTEM,
-    prompt,
-  });
-
-  let cases: Array<{
-    input: Record<string, unknown>;
-    expectedOutput?: string | null;
-  }> = [];
   try {
-    const raw = text
-      .trim()
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "");
-    const parsed = JSON.parse(raw) as { cases?: unknown[] };
-    if (Array.isArray(parsed.cases)) {
-      cases = parsed.cases.map((c) => {
-        const item = c as Record<string, unknown>;
-        return {
-          input:
-            item.input &&
-            typeof item.input === "object" &&
-            !Array.isArray(item.input)
-              ? (item.input as Record<string, unknown>)
-              : {},
-          expectedOutput:
-            typeof item.expectedOutput === "string"
-              ? item.expectedOutput
-              : null,
-        };
-      });
-    }
-  } catch {
-    return Response.json(
-      { error: "Model did not return valid JSON" },
-      { status: 502 },
-    );
-  }
+    const { text } = await generateText({
+      model: getModel(apiKey),
+      system: GENERATE_DATASET_SYSTEM,
+      prompt,
+    });
 
-  return Response.json({ cases });
+    let cases: Array<{
+      input: Record<string, unknown>;
+      expectedOutput?: string | null;
+    }> = [];
+    try {
+      const raw = text
+        .trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/i, "");
+      const parsed = JSON.parse(raw) as { cases?: unknown[] };
+      if (Array.isArray(parsed.cases)) {
+        cases = parsed.cases.map((c) => {
+          const item = c as Record<string, unknown>;
+          return {
+            input:
+              item.input &&
+              typeof item.input === "object" &&
+              !Array.isArray(item.input)
+                ? (item.input as Record<string, unknown>)
+                : {},
+            expectedOutput:
+              typeof item.expectedOutput === "string"
+                ? item.expectedOutput
+                : null,
+          };
+        });
+      }
+    } catch (parseErr) {
+      return Response.json(
+        { error: parseErr instanceof Error ? parseErr.message : "Model did not return valid JSON" },
+        { status: 502 },
+      );
+    }
+
+    return Response.json({ cases });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to generate dataset";
+    return Response.json({ error: message }, { status: 400 });
+  }
 }
