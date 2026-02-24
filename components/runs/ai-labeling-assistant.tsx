@@ -160,14 +160,19 @@ export function AiLabelingAssistant({
         <CollapsibleContent>
           <CardContent style={{ paddingTop: 0, paddingBottom: "1rem", paddingLeft: "1rem", paddingRight: "1rem" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <Textarea
-                placeholder='e.g., "Explain why each response failed" or "Group outputs by common error type" or "Tag results that violate formatting constraints"'
-                value={labelPrompt}
-                onChange={(e) => setLabelPrompt(e.target.value)}
-                rows={2}
-                style={{ resize: "none", fontSize: "0.875rem" }}
-                disabled={isLabeling || !canLabel}
-              />
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <p style={{ fontSize: "0.75rem" }} className="text-muted-foreground">
+                  Describe how you want to categorize or annotate the results. The AI will analyze each result's input, output, and evaluation scores, then apply consistent labels ONLY to results matching your criteria. Examples: "Label failed outputs by error type", "Tag responses with formatting issues", "Identify results missing required fields".
+                </p>
+                <Textarea
+                  placeholder='e.g., "Label failed results by common error patterns" or "Tag outputs that violate formatting constraints" or "Identify results with low scores due to missing context"'
+                  value={labelPrompt}
+                  onChange={(e) => setLabelPrompt(e.target.value)}
+                  rows={2}
+                  style={{ resize: "none", fontSize: "0.875rem" }}
+                  disabled={isLabeling || !canLabel}
+                />
+              </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <p style={{ fontSize: "0.75rem" }} className="text-muted-foreground">
                   {!canLabel
