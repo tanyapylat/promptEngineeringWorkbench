@@ -55,7 +55,7 @@ export function PromptList({ projectId }: { projectId: string }) {
         content: data.prompt,
         createdAt: new Date().toISOString(),
       };
-      addPrompt(newPrompt);
+      await addPrompt(newPrompt);
       setSelectedPrompt(newPrompt);
       toast.success("Prompt generated");
     } catch {
@@ -70,8 +70,8 @@ export function PromptList({ projectId }: { projectId: string }) {
       <PromptViewer
         prompt={selectedPrompt}
         onBack={() => setSelectedPrompt(null)}
-        onUpdate={(updated) => {
-          updatePrompt(updated);
+        onUpdate={async (updated) => {
+          await updatePrompt(updated);
           setSelectedPrompt(updated);
         }}
       />

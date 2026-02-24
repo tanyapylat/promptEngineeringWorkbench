@@ -151,7 +151,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
         examples: resData.spec.examples,
       };
 
-      addSpecVersion(
+      await addSpecVersion(
         projectId,
         improved,
         `Improved from run results. Notes: ${resData.spec.improvement_notes}`,
@@ -166,7 +166,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
     }
   }
 
-  function handleClearAllLabels() {
+  async function handleClearAllLabels() {
     const labeledCount = results.filter((r) => r.labels.length > 0).length;
     
     if (labeledCount === 0) {
@@ -174,13 +174,17 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
       return;
     }
 
-    results.forEach((r) => {
-      if (r.labels.length > 0) {
-        updateRunResult({ ...r, labels: [] });
+    try {
+      for (const r of results) {
+        if (r.labels.length > 0) {
+          await updateRunResult({ ...r, labels: [] });
+        }
       }
-    });
-
-    toast.success(`Cleared labels from ${labeledCount} results.`);
+      toast.success(`Cleared labels from ${labeledCount} results.`);
+    } catch (error) {
+      console.error("Failed to clear labels:", error);
+      toast.error("Failed to clear labels");
+    }
   }
 
   return (

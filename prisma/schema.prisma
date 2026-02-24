@@ -1,0 +1,141 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  specVersions    SpecVersion[]
+  datasetCases    DatasetCase[]
+  prompts         Prompt[]
+  evalDefinitions EvalDefinition[]
+  runs            Run[]
+
+  @@index([createdAt])
+}
+
+model SpecVersion {
+  id           String   @id @default(uuid())
+  projectId    String
+  version      Int
+  status       String   // "draft" | "pinned"
+  content      Json     // SpecContent interface
+  freeformText String   @db.Text
+  createdAt    DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectId, version])
+}
+
+model DatasetCase {
+  id                     String   @id @default(uuid())
+  projectId              String
+  input                  Json     // Record<string, unknown>
+  expectedOutput         String?  @db.Text
+  labels                 String[] // Array of strings
+  createdFromSpecVersion Int
+  source                 String   // "synthetic" | "manual"
+  createdAt              DateTime @default(now())
+
+  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runResults RunResult[]
+
+  @@index([projectId])
+  @@index([projectId, source])
+}
+
+model Prompt {
+  id          String   @id @default(uuid())
+  projectId   String
+  specVersion Int
+  name        String
+  content     String   @db.Text
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runs    Run[]
+
+  @@index([projectId])
+  @@index([projectId, specVersion])
+}
+
+model EvalDefinition {
+  id               String   @id @default(uuid())
+  projectId        String
+  specVersion      Int
+  name             String
+  description      String   @db.Text
+  scoreMode        String   // "pass_fail" | "scale_1_5"
+  judgeInstruction String   @db.Text
+  createdAt        DateTime @default(now())
+
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  evalResults EvalResult[]
+
+  @@index([projectId])
+  @@index([projectId, specVersion])
+}
+
+model Run {
+  id             String   @id @default(uuid())
+  projectId      String
+  promptId       String
+  datasetCaseIds String[] // Array of IDs
+  evalIds        String[] // Array of IDs
+  specVersion    Int
+  status         String   // "running" | "completed" | "failed"
+  label          String?
+  createdAt      DateTime @default(now())
+
+  project    Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  prompt     Prompt      @relation(fields: [promptId], references: [id], onDelete: Restrict)
+  runResults RunResult[]
+
+  @@index([projectId])
+  @@index([projectId, status])
+  @@index([promptId])
+}
+
+model RunResult {
+  id            String   @id @default(uuid())
+  runId         String
+  datasetCaseId String
+  output        String   @db.Text
+  labels        String[] // Array of strings
+  createdAt     DateTime @default(now())
+
+  run         Run          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  datasetCase DatasetCase  @relation(fields: [datasetCaseId], references: [id], onDelete: Restrict)
+  evalResults EvalResult[]
+
+  @@index([runId])
+  @@index([datasetCaseId])
+}
+
+model EvalResult {
+  id           String   @id @default(uuid())
+  runResultId  String
+  evalId       String
+  score        Float
+  reason       String   @db.Text
+  createdAt    DateTime @default(now())
+
+  runResult      RunResult      @relation(fields: [runResultId], references: [id], onDelete: Cascade)
+  evalDefinition EvalDefinition @relation(fields: [evalId], references: [id], onDelete: Restrict)
+
+  @@index([runResultId])
+  @@index([evalId])
+}

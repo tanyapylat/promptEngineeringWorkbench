@@ -84,7 +84,7 @@ export function RunLauncher({
       status: "running",
       createdAt: new Date().toISOString(),
     };
-    addRun(run);
+    await addRun(run);
 
     try {
       // Run prompt on each case
@@ -109,7 +109,7 @@ export function RunLauncher({
           createdAt: new Date().toISOString(),
         });
       }
-      addRunResults(results);
+      await addRunResults(results);
 
       // Run evals on results
       if (selectedEvalIds.length > 0) {
@@ -143,13 +143,13 @@ export function RunLauncher({
             });
           }
         }
-        addEvalResults(evalResults);
+        await addEvalResults(evalResults);
       }
 
-      updateRun({ ...run, status: "completed" });
+      await updateRun({ ...run, status: "completed" });
       toast.success(`Run completed: ${results.length} cases processed`);
     } catch {
-      updateRun({ ...run, status: "failed" });
+      await updateRun({ ...run, status: "failed" });
       // apiFetch already shows toast
     } finally {
       setIsRunning(false);

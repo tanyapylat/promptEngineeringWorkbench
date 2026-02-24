@@ -22,8 +22,6 @@ import type {
   EvalResult,
 } from "./types";
 
-const STORAGE_KEY = "prompt-workbench-data";
-
 const defaultData: WorkbenchData = {
   projects: [],
   specVersions: [],
@@ -34,17 +32,6 @@ const defaultData: WorkbenchData = {
   runResults: [],
   evalResults: [],
 };
-
-function loadData(): WorkbenchData {
-  if (typeof window === "undefined") return defaultData;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultData;
-    return JSON.parse(raw) as WorkbenchData;
-  } catch {
-    return defaultData;
-  }
-}
 
 // ---- Reducer ------------------------------------------------
 
@@ -198,42 +185,43 @@ function reducer(state: WorkbenchData, action: Action): WorkbenchData {
 
 interface WorkbenchContextValue {
   data: WorkbenchData;
+  isLoading: boolean;
   // Project
-  createProject: (name: string) => Project;
-  updateProject: (project: Project) => void;
-  deleteProject: (projectId: string) => void;
+  createProject: (name: string) => Promise<Project>;
+  updateProject: (project: Project) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<void>;
   // Spec
   addSpecVersion: (
     projectId: string,
     content: SpecContent,
     freeformText: string,
-  ) => SpecVersion;
-  updateSpecVersion: (sv: SpecVersion) => void;
-  pinSpecVersion: (id: string) => void;
+  ) => Promise<SpecVersion>;
+  updateSpecVersion: (sv: SpecVersion) => Promise<void>;
+  pinSpecVersion: (id: string) => Promise<void>;
   getSpecVersionsForProject: (projectId: string) => SpecVersion[];
   getLatestSpec: (projectId: string) => SpecVersion | undefined;
   getPinnedSpec: (projectId: string) => SpecVersion | undefined;
   // Dataset
-  addDatasetCases: (cases: DatasetCase[]) => void;
-  updateDatasetCase: (dc: DatasetCase) => void;
-  deleteDatasetCase: (id: string) => void;
+  addDatasetCases: (cases: DatasetCase[]) => Promise<void>;
+  updateDatasetCase: (dc: DatasetCase) => Promise<void>;
+  deleteDatasetCase: (id: string) => Promise<void>;
   getDatasetForProject: (projectId: string) => DatasetCase[];
   // Prompt
-  addPrompt: (prompt: Prompt) => void;
-  updatePrompt: (prompt: Prompt) => void;
-  deletePrompt: (id: string) => void;
+  addPrompt: (prompt: Prompt) => Promise<void>;
+  updatePrompt: (prompt: Prompt) => Promise<void>;
+  deletePrompt: (id: string) => Promise<void>;
   getPromptsForProject: (projectId: string) => Prompt[];
   // Eval
-  addEvalDefinition: (evalDef: EvalDefinition) => void;
-  updateEvalDefinition: (evalDef: EvalDefinition) => void;
-  deleteEvalDefinition: (id: string) => void;
+  addEvalDefinition: (evalDef: EvalDefinition) => Promise<void>;
+  updateEvalDefinition: (evalDef: EvalDefinition) => Promise<void>;
+  deleteEvalDefinition: (id: string) => Promise<void>;
   getEvalsForProject: (projectId: string) => EvalDefinition[];
   // Run
-  addRun: (run: Run) => void;
-  updateRun: (run: Run) => void;
-  addRunResults: (results: RunResult[]) => void;
-  updateRunResult: (result: RunResult) => void;
-  addEvalResults: (results: EvalResult[]) => void;
+  addRun: (run: Run) => Promise<void>;
+  updateRun: (run: Run) => Promise<void>;
+  addRunResults: (results: RunResult[]) => Promise<void>;
+  updateRunResult: (result: RunResult) => Promise<void>;
+  addEvalResults: (results: EvalResult[]) => Promise<void>;
   getRunsForProject: (projectId: string) => Run[];
   getRunResults: (runId: string) => RunResult[];
   getEvalResults: (runResultId: string) => EvalResult[];
@@ -249,97 +237,203 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   const [data, dispatch] = useReducer(reducer, defaultData);
   const initialized = useRef(false);
   const [apiKey, setApiKey] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load from localStorage on mount
+  // Load all data from API on mount
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
-      const stored = loadData();
-      dispatch({ type: "SET_DATA", data: stored });
+      loadAllData();
     }
   }, []);
 
-  // Save to localStorage on change
-  useEffect(() => {
-    if (initialized.current) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  const loadAllData = async () => {
+    try {
+      setIsLoading(true);
+      const projects = await fetch("/api/data/projects").then((r) => r.json());
+
+      const allData: WorkbenchData = {
+        projects,
+        specVersions: [],
+        datasetCases: [],
+        prompts: [],
+        evalDefinitions: [],
+        runs: [],
+        runResults: [],
+        evalResults: [],
+      };
+
+      // Load data for each project
+      for (const project of projects) {
+        const [specVersions, datasetCases, prompts, evalDefinitions, runs] =
+          await Promise.all([
+            fetch(`/api/data/spec-versions?projectId=${project.id}`).then((r) =>
+              r.json(),
+            ),
+            fetch(`/api/data/dataset-cases?projectId=${project.id}`).then((r) =>
+              r.json(),
+            ),
+            fetch(`/api/data/prompts?projectId=${project.id}`).then((r) =>
+              r.json(),
+            ),
+            fetch(`/api/data/eval-definitions?projectId=${project.id}`).then(
+              (r) => r.json(),
+            ),
+            fetch(`/api/data/runs?projectId=${project.id}`).then((r) =>
+              r.json(),
+            ),
+          ]);
+
+        allData.specVersions.push(...specVersions);
+        allData.datasetCases.push(...datasetCases);
+        allData.prompts.push(...prompts);
+        allData.evalDefinitions.push(...evalDefinitions);
+        allData.runs.push(...runs);
+
+        // Load run results and eval results for each run
+        for (const run of runs) {
+          const [runResults, evalResults] = await Promise.all([
+            fetch(`/api/data/run-results?runId=${run.id}`).then((r) =>
+              r.json(),
+            ),
+            fetch(`/api/data/eval-results?runId=${run.id}`).then((r) =>
+              r.json(),
+            ),
+          ]);
+
+          allData.runResults.push(...runResults);
+          allData.evalResults.push(...evalResults);
+        }
+      }
+
+      dispatch({ type: "SET_DATA", data: allData });
+    } catch (error) {
+      console.error("Error loading data:", error);
+    } finally {
+      setIsLoading(false);
     }
-  }, [data]);
+  };
 
   // ---- Project ----
-  const createProject = useCallback((name: string): Project => {
-    const project: Project = {
-      id: crypto.randomUUID(),
-      name,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+  const createProject = useCallback(async (name: string): Promise<Project> => {
+    const response = await fetch("/api/data/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create project");
+    }
+
+    const project = await response.json();
     dispatch({ type: "ADD_PROJECT", project });
     return project;
   }, []);
-  const updateProject = useCallback(
-    (project: Project) => dispatch({ type: "UPDATE_PROJECT", project }),
-    [],
-  );
-  const deleteProject = useCallback(
-    (projectId: string) => dispatch({ type: "DELETE_PROJECT", projectId }),
-    [],
-  );
+
+  const updateProject = useCallback(async (project: Project) => {
+    const response = await fetch(`/api/data/projects/${project.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: project.name }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update project");
+    }
+
+    const updatedProject = await response.json();
+    dispatch({ type: "UPDATE_PROJECT", project: updatedProject });
+  }, []);
+
+  const deleteProject = useCallback(async (projectId: string) => {
+    const response = await fetch(`/api/data/projects/${projectId}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete project");
+    }
+
+    dispatch({ type: "DELETE_PROJECT", projectId });
+  }, []);
 
   // ---- Spec ----
   const addSpecVersion = useCallback(
-    (
+    async (
       projectId: string,
       content: SpecContent,
       freeformText: string,
-    ): SpecVersion => {
-      const existing = data.specVersions.filter(
-        (s) => s.projectId === projectId,
-      );
-      const version =
-        existing.length > 0
-          ? Math.max(...existing.map((s) => s.version)) + 1
-          : 1;
-      const sv: SpecVersion = {
-        id: crypto.randomUUID(),
-        projectId,
-        version,
-        status: "draft",
-        content,
-        freeformText,
-        createdAt: new Date().toISOString(),
-      };
-      dispatch({ type: "ADD_SPEC_VERSION", specVersion: sv });
-      return sv;
+    ): Promise<SpecVersion> => {
+      const response = await fetch("/api/data/spec-versions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, content, freeformText }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create spec version");
+      }
+
+      const specVersion = await response.json();
+      dispatch({ type: "ADD_SPEC_VERSION", specVersion });
+      return specVersion;
     },
-    [data.specVersions],
-  );
-  const updateSpecVersion = useCallback(
-    (sv: SpecVersion) =>
-      dispatch({ type: "UPDATE_SPEC_VERSION", specVersion: sv }),
     [],
   );
+
+  const updateSpecVersion = useCallback(async (sv: SpecVersion) => {
+    const response = await fetch(`/api/data/spec-versions/${sv.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        status: sv.status,
+        content: sv.content,
+        freeformText: sv.freeformText,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update spec version");
+    }
+
+    const updatedSpecVersion = await response.json();
+    dispatch({ type: "UPDATE_SPEC_VERSION", specVersion: updatedSpecVersion });
+  }, []);
+
   const pinSpecVersion = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const sv = data.specVersions.find((s) => s.id === id);
-      if (sv) {
-        // Unpin others in same project
-        data.specVersions
-          .filter((s) => s.projectId === sv.projectId && s.status === "pinned")
-          .forEach((s) =>
-            dispatch({
-              type: "UPDATE_SPEC_VERSION",
-              specVersion: { ...s, status: "draft" },
-            }),
-          );
-        dispatch({
-          type: "UPDATE_SPEC_VERSION",
-          specVersion: { ...sv, status: "pinned" },
-        });
+      if (!sv) return;
+
+      const response = await fetch(`/api/data/spec-versions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "pinned" }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to pin spec version");
       }
+
+      const updatedSpecVersion = await response.json();
+      dispatch({ type: "UPDATE_SPEC_VERSION", specVersion: updatedSpecVersion });
+
+      // The API handles unpinning others, so we need to refetch
+      const specVersions = await fetch(
+        `/api/data/spec-versions?projectId=${sv.projectId}`,
+      ).then((r) => r.json());
+
+      // Update all spec versions for this project
+      specVersions.forEach((s: SpecVersion) => {
+        if (s.id !== id) {
+          dispatch({ type: "UPDATE_SPEC_VERSION", specVersion: s });
+        }
+      });
     },
     [data.specVersions],
   );
+
   const getSpecVersionsForProject = useCallback(
     (projectId: string) =>
       data.specVersions
@@ -347,6 +441,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         .sort((a, b) => b.version - a.version),
     [data.specVersions],
   );
+
   const getLatestSpec = useCallback(
     (projectId: string) => {
       const versions = data.specVersions.filter(
@@ -357,6 +452,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     },
     [data.specVersions],
   );
+
   const getPinnedSpec = useCallback(
     (projectId: string) =>
       data.specVersions.find(
@@ -366,19 +462,52 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   );
 
   // ---- Dataset ----
-  const addDatasetCases = useCallback(
-    (cases: DatasetCase[]) => dispatch({ type: "ADD_DATASET_CASES", cases }),
-    [],
-  );
-  const updateDatasetCase = useCallback(
-    (dc: DatasetCase) =>
-      dispatch({ type: "UPDATE_DATASET_CASE", datasetCase: dc }),
-    [],
-  );
-  const deleteDatasetCase = useCallback(
-    (id: string) => dispatch({ type: "DELETE_DATASET_CASE", caseId: id }),
-    [],
-  );
+  const addDatasetCases = useCallback(async (cases: DatasetCase[]) => {
+    const response = await fetch("/api/data/dataset-cases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cases }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create dataset cases");
+    }
+
+    const createdCases = await response.json();
+    dispatch({ type: "ADD_DATASET_CASES", cases: createdCases });
+  }, []);
+
+  const updateDatasetCase = useCallback(async (dc: DatasetCase) => {
+    const response = await fetch(`/api/data/dataset-cases/${dc.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        input: dc.input,
+        expectedOutput: dc.expectedOutput,
+        labels: dc.labels,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update dataset case");
+    }
+
+    const updatedCase = await response.json();
+    dispatch({ type: "UPDATE_DATASET_CASE", datasetCase: updatedCase });
+  }, []);
+
+  const deleteDatasetCase = useCallback(async (id: string) => {
+    const response = await fetch(`/api/data/dataset-cases/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete dataset case");
+    }
+
+    dispatch({ type: "DELETE_DATASET_CASE", caseId: id });
+  }, []);
+
   const getDatasetForProject = useCallback(
     (projectId: string) =>
       data.datasetCases.filter((d) => d.projectId === projectId),
@@ -386,18 +515,48 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   );
 
   // ---- Prompt ----
-  const addPrompt = useCallback(
-    (prompt: Prompt) => dispatch({ type: "ADD_PROMPT", prompt }),
-    [],
-  );
-  const updatePrompt = useCallback(
-    (prompt: Prompt) => dispatch({ type: "UPDATE_PROMPT", prompt }),
-    [],
-  );
-  const deletePrompt = useCallback(
-    (id: string) => dispatch({ type: "DELETE_PROMPT", promptId: id }),
-    [],
-  );
+  const addPrompt = useCallback(async (prompt: Prompt) => {
+    const response = await fetch("/api/data/prompts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(prompt),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create prompt");
+    }
+
+    const createdPrompt = await response.json();
+    dispatch({ type: "ADD_PROMPT", prompt: createdPrompt });
+  }, []);
+
+  const updatePrompt = useCallback(async (prompt: Prompt) => {
+    const response = await fetch(`/api/data/prompts/${prompt.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: prompt.name, content: prompt.content }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update prompt");
+    }
+
+    const updatedPrompt = await response.json();
+    dispatch({ type: "UPDATE_PROMPT", prompt: updatedPrompt });
+  }, []);
+
+  const deletePrompt = useCallback(async (id: string) => {
+    const response = await fetch(`/api/data/prompts/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete prompt");
+    }
+
+    dispatch({ type: "DELETE_PROMPT", promptId: id });
+  }, []);
+
   const getPromptsForProject = useCallback(
     (projectId: string) =>
       data.prompts
@@ -407,20 +566,53 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   );
 
   // ---- Eval ----
-  const addEvalDefinition = useCallback(
-    (evalDef: EvalDefinition) =>
-      dispatch({ type: "ADD_EVAL_DEFINITION", evalDef }),
-    [],
-  );
-  const updateEvalDefinition = useCallback(
-    (evalDef: EvalDefinition) =>
-      dispatch({ type: "UPDATE_EVAL_DEFINITION", evalDef }),
-    [],
-  );
-  const deleteEvalDefinition = useCallback(
-    (id: string) => dispatch({ type: "DELETE_EVAL_DEFINITION", evalId: id }),
-    [],
-  );
+  const addEvalDefinition = useCallback(async (evalDef: EvalDefinition) => {
+    const response = await fetch("/api/data/eval-definitions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(evalDef),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create eval definition");
+    }
+
+    const createdEval = await response.json();
+    dispatch({ type: "ADD_EVAL_DEFINITION", evalDef: createdEval });
+  }, []);
+
+  const updateEvalDefinition = useCallback(async (evalDef: EvalDefinition) => {
+    const response = await fetch(`/api/data/eval-definitions/${evalDef.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: evalDef.name,
+        description: evalDef.description,
+        scoreMode: evalDef.scoreMode,
+        judgeInstruction: evalDef.judgeInstruction,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update eval definition");
+    }
+
+    const updatedEval = await response.json();
+    dispatch({ type: "UPDATE_EVAL_DEFINITION", evalDef: updatedEval });
+  }, []);
+
+  const deleteEvalDefinition = useCallback(async (id: string) => {
+    const response = await fetch(`/api/data/eval-definitions/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete eval definition");
+    }
+
+    dispatch({ type: "DELETE_EVAL_DEFINITION", evalId: id });
+  }, []);
+
   const getEvalsForProject = useCallback(
     (projectId: string) =>
       data.evalDefinitions.filter((e) => e.projectId === projectId),
@@ -428,26 +620,81 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   );
 
   // ---- Run ----
-  const addRun = useCallback(
-    (run: Run) => dispatch({ type: "ADD_RUN", run }),
-    [],
-  );
-  const updateRun = useCallback(
-    (run: Run) => dispatch({ type: "UPDATE_RUN", run }),
-    [],
-  );
-  const addRunResults = useCallback(
-    (results: RunResult[]) => dispatch({ type: "ADD_RUN_RESULTS", results }),
-    [],
-  );
-  const updateRunResult = useCallback(
-    (result: RunResult) => dispatch({ type: "UPDATE_RUN_RESULT", result }),
-    [],
-  );
-  const addEvalResults = useCallback(
-    (results: EvalResult[]) => dispatch({ type: "ADD_EVAL_RESULTS", results }),
-    [],
-  );
+  const addRun = useCallback(async (run: Run) => {
+    const response = await fetch("/api/data/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(run),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create run");
+    }
+
+    const createdRun = await response.json();
+    dispatch({ type: "ADD_RUN", run: createdRun });
+  }, []);
+
+  const updateRun = useCallback(async (run: Run) => {
+    const response = await fetch(`/api/data/runs/${run.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: run.status, label: run.label }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update run");
+    }
+
+    const updatedRun = await response.json();
+    dispatch({ type: "UPDATE_RUN", run: updatedRun });
+  }, []);
+
+  const addRunResults = useCallback(async (results: RunResult[]) => {
+    const response = await fetch("/api/data/run-results", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ results }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create run results");
+    }
+
+    const createdResults = await response.json();
+    dispatch({ type: "ADD_RUN_RESULTS", results: createdResults });
+  }, []);
+
+  const updateRunResult = useCallback(async (result: RunResult) => {
+    const response = await fetch(`/api/data/run-results/${result.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ output: result.output, labels: result.labels }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to update run result");
+    }
+
+    const updatedResult = await response.json();
+    dispatch({ type: "UPDATE_RUN_RESULT", result: updatedResult });
+  }, []);
+
+  const addEvalResults = useCallback(async (results: EvalResult[]) => {
+    const response = await fetch("/api/data/eval-results", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ results }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to create eval results");
+    }
+
+    const createdResults = await response.json();
+    dispatch({ type: "ADD_EVAL_RESULTS", results: createdResults });
+  }, []);
+
   const getRunsForProject = useCallback(
     (projectId: string) =>
       data.runs
@@ -455,15 +702,18 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [data.runs],
   );
+
   const getRunResults = useCallback(
     (runId: string) => data.runResults.filter((r) => r.runId === runId),
     [data.runResults],
   );
+
   const getEvalResults = useCallback(
     (runResultId: string) =>
       data.evalResults.filter((e) => e.runResultId === runResultId),
     [data.evalResults],
   );
+
   const getEvalResultsForRun = useCallback(
     (runId: string) => {
       const resultIds = new Set(
@@ -476,6 +726,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
 
   const value: WorkbenchContextValue = {
     data,
+    isLoading,
     createProject,
     updateProject,
     deleteProject,
