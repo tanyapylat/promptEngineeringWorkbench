@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 // PATCH /api/data/dataset-cases/[id] - Update a dataset case
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { input, expectedOutput, labels } = body;
 
@@ -40,10 +40,10 @@ export async function PATCH(
 // DELETE /api/data/dataset-cases/[id] - Delete a dataset case
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     await prisma.datasetCase.delete({
       where: { id },

@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 // PATCH /api/data/prompts/[id] - Update a prompt
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { name, content } = body;
 
@@ -36,10 +36,10 @@ export async function PATCH(
 // DELETE /api/data/prompts/[id] - Delete a prompt
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     await prisma.prompt.delete({
       where: { id },

@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
+      id,
       projectId,
       promptId,
       datasetCaseIds,
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
       !promptId ||
       !datasetCaseIds ||
       !evalIds ||
-      !specVersion ||
+      specVersion === undefined ||
       !status
     ) {
       return NextResponse.json(
@@ -62,6 +63,7 @@ export async function POST(request: NextRequest) {
 
     const run = await prisma.run.create({
       data: {
+        ...(id && { id }), // Include id if provided
         projectId,
         promptId,
         datasetCaseIds,
