@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 // PATCH /api/data/spec-versions/[id] - Update a spec version
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { status, content, freeformText } = body;
 
@@ -58,10 +58,10 @@ export async function PATCH(
 // DELETE /api/data/spec-versions/[id] - Delete a spec version
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     await prisma.specVersion.delete({
       where: { id },

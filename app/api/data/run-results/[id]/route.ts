@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 // PATCH /api/data/run-results/[id] - Update a run result
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { output, labels } = body;
 
@@ -39,10 +39,10 @@ export async function PATCH(
 // DELETE /api/data/run-results/[id] - Delete a run result
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     await prisma.runResult.delete({
       where: { id },
