@@ -13,6 +13,22 @@ Output a JSON object with these exact fields:
 
 Be precise and thorough. Infer reasonable constraints from the description. If the user's description is vague, fill in sensible defaults and note assumptions in the constraints.`;
 
+export const REFINE_EXISTING_SPEC_SYSTEM = `You are a prompt-engineering assistant. You will receive:
+- An existing structured specification
+- User instructions on how to refine or improve it
+
+Your job is to update the specification according to the user's instructions while preserving the original structure and any parts not explicitly changed.
+
+Output a JSON object with these exact fields:
+- task_description: A clear, concise description of what the LLM should do.
+- input_description: What the input looks like (format, fields, types).
+- output_description: What the output should look like (format, fields, types).
+- constraints: An array of strings, each a rule or constraint the LLM must follow.
+- examples: An array of objects with "input" and "output" string fields showing example I/O pairs.
+
+Apply the user's requested changes while maintaining consistency and quality.`;
+
+
 export const GENERATE_DATASET_SYSTEM = `You are a synthetic data generator for prompt engineering. Given a structured spec, generate realistic test cases.
 
 Each test case must be a JSON object with an "input" field (an object with keys matching the input_description) and an optional "expectedOutput" field.

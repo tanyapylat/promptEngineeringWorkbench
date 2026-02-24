@@ -26,18 +26,21 @@ model Project {
 }
 
 model SpecVersion {
-  id           String   @id @default(uuid())
-  projectId    String
-  version      Int
-  status       String   // "draft" | "pinned"
-  content      Json     // SpecContent interface
-  freeformText String   @db.Text
-  createdAt    DateTime @default(now())
+  id        String   @id @default(uuid())
+  projectId String
+  version   Int
+  status    String   // "draft" | "committed"
+  isPinned  Boolean  @default(false)
+  content   Json     // SpecContent interface
+  comment   String   @db.Text
+  createdAt DateTime @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@index([projectId, version])
+  @@index([projectId, isPinned])
+  @@index([projectId, status])
 }
 
 model DatasetCase {

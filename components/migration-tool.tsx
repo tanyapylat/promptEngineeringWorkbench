@@ -81,7 +81,7 @@ export function MigrationTool() {
             body: JSON.stringify({
               projectId: createdProject.id,
               content: spec.content,
-              freeformText: spec.freeformText,
+              comment: spec.comment || spec.freeformText || "Migrated spec",
             }),
           });
         }

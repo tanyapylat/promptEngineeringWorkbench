@@ -17,19 +17,27 @@ export function PromptList({ projectId }: { projectId: string }) {
     addPrompt,
     updatePrompt,
     deletePrompt,
-    getLatestSpec,
+    getPinnedSpec,
     apiKey,
   } = useWorkbench();
 
   const prompts = getPromptsForProject(projectId);
-  const latestSpec = getLatestSpec(projectId);
+  const pinnedSpec = getPinnedSpec(projectId);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
 
   async function handleGenerate() {
-    if (!latestSpec) {
-      toast.error("Create a spec first before generating a prompt.");
+    // Get the pinned spec (must be committed)
+    const pinnedSpec = getPinnedSpec(projectId);
+    
+    if (!pinnedSpec) {
+      toast.error("Please commit and pin a spec version first before generating a prompt.");
+      return;
+    }
+
+    if (pinnedSpec.status !== "committed") {
+      toast.error("Only committed spec versions can be used to generate prompts. Please commit the draft first.");
       return;
     }
 
@@ -43,14 +51,14 @@ export function PromptList({ projectId }: { projectId: string }) {
       const res = await apiFetch("/api/ai/generate-prompt", {
         method: "POST",
         headers,
-        body: JSON.stringify({ spec: latestSpec.content }),
+        body: JSON.stringify({ spec: pinnedSpec.content }),
       });
 
       const data = await res.json();
       const newPrompt: Prompt = {
         id: crypto.randomUUID(),
         projectId,
-        specVersion: latestSpec.version,
+        specVersion: pinnedSpec.version,
         name: `Prompt v${prompts.length + 1}`,
         content: data.prompt,
         createdAt: new Date().toISOString(),

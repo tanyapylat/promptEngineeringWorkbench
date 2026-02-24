@@ -9,30 +9,88 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { status, content, freeformText } = body;
+    const { status, isPinned, content, comment } = body;
+
+    // Get the spec version to validate editability
+    const specVersion = await prisma.specVersion.findUnique({
+      where: { id },
+    });
+
+    if (!specVersion) {
+      return NextResponse.json(
+        { error: "Spec version not found" },
+        { status: 404 },
+      );
+    }
+
+    // Only allow editing draft versions (unless changing status or isPinned)
+    if (content !== undefined || comment !== undefined) {
+      if (specVersion.status === "committed") {
+        return NextResponse.json(
+          { error: "Cannot edit committed version. Create a new draft instead." },
+          { status: 403 },
+        );
+      }
+    }
 
     const updateData: any = {};
-    if (status) updateData.status = status;
-    if (content) updateData.content = content;
-    if (freeformText !== undefined) updateData.freeformText = freeformText;
-
-    // If pinning this version, unpin others in the same project
-    if (status === "pinned") {
-      const specVersion = await prisma.specVersion.findUnique({
-        where: { id },
-      });
-
-      if (specVersion) {
+    if (status !== undefined) {
+      // Validate status transitions
+      if (status === "committed" && specVersion.status === "draft") {
+        // Committing a draft - require non-empty comment
+        if (!comment && !specVersion.comment.trim()) {
+          return NextResponse.json(
+            { error: "Cannot commit without a version comment" },
+            { status: 400 },
+          );
+        }
+        updateData.status = "committed";
+        
+        // If this is the first committed version, auto-pin it
+        const committedVersions = await prisma.specVersion.findMany({
+          where: { 
+            projectId: specVersion.projectId,
+            status: "committed"
+          },
+        });
+        
+        if (committedVersions.length === 0) {
+          updateData.isPinned = true;
+        }
+      } else if (status === "draft" && specVersion.status === "committed") {
+        return NextResponse.json(
+          { error: "Cannot change committed version back to draft" },
+          { status: 400 },
+        );
+      }
+    }
+    
+    if (isPinned !== undefined) {
+      // Only committed versions can be pinned
+      if (isPinned && (status !== "committed" && specVersion.status !== "committed")) {
+        return NextResponse.json(
+          { error: "Only committed versions can be pinned" },
+          { status: 400 },
+        );
+      }
+      
+      // If pinning this version, unpin all others in the project
+      if (isPinned) {
         await prisma.specVersion.updateMany({
           where: {
             projectId: specVersion.projectId,
-            status: "pinned",
+            isPinned: true,
             id: { not: id },
           },
-          data: { status: "draft" },
+          data: { isPinned: false },
         });
       }
+      
+      updateData.isPinned = isPinned;
     }
+    
+    if (content !== undefined) updateData.content = content;
+    if (comment !== undefined) updateData.comment = comment;
 
     const updatedSpecVersion = await prisma.specVersion.update({
       where: { id },
@@ -62,6 +120,26 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    // Get the spec version to validate deletion
+    const specVersion = await prisma.specVersion.findUnique({
+      where: { id },
+    });
+
+    if (!specVersion) {
+      return NextResponse.json(
+        { error: "Spec version not found" },
+        { status: 404 },
+      );
+    }
+
+    // Only allow deleting draft versions
+    if (specVersion.status === "committed") {
+      return NextResponse.json(
+        { error: "Cannot delete committed version. Only draft versions can be deleted." },
+        { status: 403 },
+      );
+    }
 
     await prisma.specVersion.delete({
       where: { id },
