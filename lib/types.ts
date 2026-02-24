@@ -27,9 +27,10 @@ export interface SpecVersion {
   id: string;
   projectId: string;
   version: number;
-  status: "draft" | "pinned";
+  status: "draft" | "committed";
+  isPinned: boolean;
   content: SpecContent;
-  freeformText: string;
+  comment: string;
   createdAt: string;
 }
 

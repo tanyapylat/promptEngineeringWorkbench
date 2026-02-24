@@ -32,12 +32,12 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
     addDatasetCases,
     updateDatasetCase,
     deleteDatasetCase,
-    getLatestSpec,
+    getPinnedSpec,
     apiKey,
   } = useWorkbench();
 
   const cases = getDatasetForProject(projectId);
-  const latestSpec = getLatestSpec(projectId);
+  const pinnedSpec = getPinnedSpec(projectId);
 
   const [editingCase, setEditingCase] = useState<DatasetCase | null>(null);
   const [editingLabelsCaseId, setEditingLabelsCaseId] = useState<string | null>(
@@ -77,8 +77,15 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
     instructions: string,
     datasetLabels: string[],
   ) {
-    if (!latestSpec) {
-      toast.error("Create a spec first before generating dataset cases.");
+    const pinnedSpec = getPinnedSpec(projectId);
+    
+    if (!pinnedSpec) {
+      toast.error("Please commit and pin a spec version first before generating dataset cases.");
+      return;
+    }
+
+    if (pinnedSpec.status !== "committed") {
+      toast.error("Only committed spec versions can be used to generate dataset. Please commit the draft first.");
       return;
     }
 
@@ -93,7 +100,7 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
         method: "POST",
         headers,
         body: JSON.stringify({
-          spec: latestSpec.content,
+          spec: pinnedSpec.content,
           count,
           instructions,
           datasetLabels: datasetLabels.length ? datasetLabels : undefined,
@@ -108,7 +115,7 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
           input: c.input,
           expectedOutput: c.expectedOutput,
           labels: [],
-          createdFromSpecVersion: latestSpec.version,
+          createdFromSpecVersion: pinnedSpec.version,
           source: "synthetic" as const,
           createdAt: new Date().toISOString(),
         }),
@@ -141,7 +148,7 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
           input: data.input,
           expectedOutput: data.expectedOutput,
           labels: data.labels,
-          createdFromSpecVersion: latestSpec?.version ?? 0,
+          createdFromSpecVersion: pinnedSpec?.version ?? 0,
           source: "manual",
           createdAt: new Date().toISOString(),
         };

@@ -17,20 +17,27 @@ export function EvalManager({ projectId }: { projectId: string }) {
     addEvalDefinition,
     updateEvalDefinition,
     deleteEvalDefinition,
-    getLatestSpec,
+    getPinnedSpec,
     apiKey,
   } = useWorkbench();
 
   const evals = getEvalsForProject(projectId);
-  const latestSpec = getLatestSpec(projectId);
+  const pinnedSpec = getPinnedSpec(projectId);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [editingEval, setEditingEval] = useState<EvalDefinition | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   async function handleGenerate() {
-    if (!latestSpec) {
-      toast.error("Create a spec first before generating evals.");
+    const pinnedSpec = getPinnedSpec(projectId);
+    
+    if (!pinnedSpec) {
+      toast.error("Please commit and pin a spec version first before generating evals.");
+      return;
+    }
+
+    if (pinnedSpec.status !== "committed") {
+      toast.error("Only committed spec versions can be used to generate evals. Please commit the draft first.");
       return;
     }
 
@@ -44,7 +51,7 @@ export function EvalManager({ projectId }: { projectId: string }) {
       const res = await apiFetch("/api/ai/generate-evals", {
         method: "POST",
         headers,
-        body: JSON.stringify({ spec: latestSpec.content }),
+        body: JSON.stringify({ spec: pinnedSpec.content }),
       });
 
       const data = await res.json();
@@ -57,7 +64,7 @@ export function EvalManager({ projectId }: { projectId: string }) {
         }) => ({
           id: crypto.randomUUID(),
           projectId,
-          specVersion: latestSpec.version,
+          specVersion: pinnedSpec.version,
           name: e.name,
           description: e.description,
           scoreMode: e.scoreMode === "scale_1_5" ? "scale_1_5" : "pass_fail",
@@ -92,7 +99,7 @@ export function EvalManager({ projectId }: { projectId: string }) {
         const newEval: EvalDefinition = {
           id: crypto.randomUUID(),
           projectId,
-          specVersion: latestSpec?.version ?? 0,
+          specVersion: pinnedSpec?.version ?? 0,
           ...data,
           createdAt: new Date().toISOString(),
         };

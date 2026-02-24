@@ -42,6 +42,7 @@ type Action =
   | { type: "DELETE_PROJECT"; projectId: string }
   | { type: "ADD_SPEC_VERSION"; specVersion: SpecVersion }
   | { type: "UPDATE_SPEC_VERSION"; specVersion: SpecVersion }
+  | { type: "DELETE_SPEC_VERSION"; specVersionId: string }
   | { type: "ADD_DATASET_CASES"; cases: DatasetCase[] }
   | { type: "UPDATE_DATASET_CASE"; datasetCase: DatasetCase }
   | { type: "DELETE_DATASET_CASE"; caseId: string }
@@ -96,6 +97,13 @@ function reducer(state: WorkbenchData, action: Action): WorkbenchData {
         ...state,
         specVersions: state.specVersions.map((s) =>
           s.id === action.specVersion.id ? action.specVersion : s,
+        ),
+      };
+    case "DELETE_SPEC_VERSION":
+      return {
+        ...state,
+        specVersions: state.specVersions.filter(
+          (s) => s.id !== action.specVersionId,
         ),
       };
 
@@ -194,13 +202,20 @@ interface WorkbenchContextValue {
   addSpecVersion: (
     projectId: string,
     content: SpecContent,
-    freeformText: string,
+    comment: string,
   ) => Promise<SpecVersion>;
   updateSpecVersion: (sv: SpecVersion) => Promise<void>;
+  deleteSpecVersion: (id: string) => Promise<void>;
   pinSpecVersion: (id: string) => Promise<void>;
   getSpecVersionsForProject: (projectId: string) => SpecVersion[];
   getLatestSpec: (projectId: string) => SpecVersion | undefined;
   getPinnedSpec: (projectId: string) => SpecVersion | undefined;
+  getDraftSpec: (projectId: string) => SpecVersion | undefined;
+  getCommittedSpecs: (projectId: string) => SpecVersion[];
+  isVersionEditable: (
+    version: SpecVersion,
+    allVersions: SpecVersion[],
+  ) => boolean;
   // Dataset
   addDatasetCases: (cases: DatasetCase[]) => Promise<void>;
   updateDatasetCase: (dc: DatasetCase) => Promise<void>;
@@ -364,12 +379,12 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     async (
       projectId: string,
       content: SpecContent,
-      freeformText: string,
+      comment: string,
     ): Promise<SpecVersion> => {
       const response = await fetch("/api/data/spec-versions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, content, freeformText }),
+        body: JSON.stringify({ projectId, content, comment }),
       });
 
       if (!response.ok) {
@@ -389,8 +404,9 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         status: sv.status,
+        isPinned: sv.isPinned,
         content: sv.content,
-        freeformText: sv.freeformText,
+        comment: sv.comment,
       }),
     });
 
@@ -402,6 +418,26 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: "UPDATE_SPEC_VERSION", specVersion: updatedSpecVersion });
   }, []);
 
+  const deleteSpecVersion = useCallback(async (id: string) => {
+    const response = await fetch(`/api/data/spec-versions/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to delete spec version");
+    }
+
+    dispatch({ type: "DELETE_SPEC_VERSION", specVersionId: id });
+  }, []);
+
+  const isVersionEditable = useCallback(
+    (version: SpecVersion, allVersions: SpecVersion[]): boolean => {
+      // Only draft versions are editable
+      return version.status === "draft";
+    },
+    [],
+  );
+
   const pinSpecVersion = useCallback(
     async (id: string) => {
       const sv = data.specVersions.find((s) => s.id === id);
@@ -410,7 +446,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
       const response = await fetch(`/api/data/spec-versions/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "pinned" }),
+        body: JSON.stringify({ isPinned: true }),
       });
 
       if (!response.ok) {
@@ -457,8 +493,24 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   const getPinnedSpec = useCallback(
     (projectId: string) =>
       data.specVersions.find(
-        (s) => s.projectId === projectId && s.status === "pinned",
+        (s) => s.projectId === projectId && s.isPinned === true,
       ),
+    [data.specVersions],
+  );
+
+  const getDraftSpec = useCallback(
+    (projectId: string) =>
+      data.specVersions.find(
+        (s) => s.projectId === projectId && s.status === "draft",
+      ),
+    [data.specVersions],
+  );
+
+  const getCommittedSpecs = useCallback(
+    (projectId: string) =>
+      data.specVersions
+        .filter((s) => s.projectId === projectId && s.status === "committed")
+        .sort((a, b) => b.version - a.version),
     [data.specVersions],
   );
 
@@ -733,10 +785,14 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     deleteProject,
     addSpecVersion,
     updateSpecVersion,
+    deleteSpecVersion,
     pinSpecVersion,
     getSpecVersionsForProject,
     getLatestSpec,
     getPinnedSpec,
+    getDraftSpec,
+    getCommittedSpecs,
+    isVersionEditable,
     addDatasetCases,
     updateDatasetCase,
     deleteDatasetCase,

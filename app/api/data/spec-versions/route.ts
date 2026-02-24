@@ -33,12 +33,24 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { projectId, content, freeformText } = body;
+    const { projectId, content, comment } = body;
 
-    if (!projectId || !content || !freeformText) {
+    if (!projectId || !content || !comment) {
       return NextResponse.json(
-        { error: "projectId, content, and freeformText are required" },
+        { error: "projectId, content, and comment are required" },
         { status: 400 },
+      );
+    }
+
+    // Check if a draft already exists for this project
+    const existingDraft = await prisma.specVersion.findFirst({
+      where: { projectId, status: "draft" },
+    });
+
+    if (existingDraft) {
+      return NextResponse.json(
+        { error: "A draft version already exists for this project. Please commit or discard it first." },
+        { status: 409 },
       );
     }
 
@@ -57,8 +69,9 @@ export async function POST(request: NextRequest) {
         projectId,
         version,
         status: "draft",
+        isPinned: false,
         content,
-        freeformText,
+        comment,
       },
     });
 

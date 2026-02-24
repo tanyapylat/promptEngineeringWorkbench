@@ -43,8 +43,10 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
     getEvalResultsForRun,
     getDatasetForProject,
     getEvalsForProject,
-    getLatestSpec,
+    getPinnedSpec,
+    getDraftSpec,
     addSpecVersion,
+    updateSpecVersion,
     updateRunResult,
     data,
     apiKey,
@@ -103,9 +105,9 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
   const activeEvalDefs = evals.filter((e) => run.evalIds.includes(e.id));
 
   async function handleImproveSpec() {
-    const latestSpec = getLatestSpec(projectId);
-    if (!latestSpec) {
-      toast.error("No spec found to improve.");
+    const pinnedSpec = getPinnedSpec(projectId);
+    if (!pinnedSpec) {
+      toast.error("No pinned spec found. Please commit a spec version first.");
       return;
     }
 
@@ -137,7 +139,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
         method: "POST",
         headers,
         body: JSON.stringify({
-          spec: latestSpec.content,
+          spec: pinnedSpec.content,
           results: resultsData,
         }),
       });
@@ -151,14 +153,32 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
         examples: resData.spec.examples,
       };
 
-      await addSpecVersion(
-        projectId,
-        improved,
-        `Improved from run results. Notes: ${resData.spec.improvement_notes}`,
-      );
-      toast.success(
-        "Improved spec created as a new version. Switch to the Specs section to review.",
-      );
+      const improvementComment = `Self-improvement based on run results. ${resData.spec.improvement_notes}`;
+      
+      // Check if a draft already exists
+      const existingDraft = getDraftSpec(projectId);
+      
+      if (existingDraft) {
+        // Update the existing draft
+        await updateSpecVersion({
+          ...existingDraft,
+          content: improved,
+          comment: improvementComment,
+        });
+        toast.success(
+          `Updated draft v${existingDraft.version} with improved spec. Switch to the Specs section to review and commit.`,
+        );
+      } else {
+        // Create a new draft
+        await addSpecVersion(
+          projectId,
+          improved,
+          improvementComment,
+        );
+        toast.success(
+          "Improved spec created as a new draft version. Switch to the Specs section to review and commit.",
+        );
+      }
     } catch {
       // apiFetch already shows toast
     } finally {
