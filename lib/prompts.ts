@@ -62,6 +62,23 @@ Return a JSON object with:
 - score: A number (0 or 1 for pass/fail, 1-5 for scale)
 - reason: A brief explanation of your score (1-2 sentences)`;
 
+export const LABEL_RESULTS_SYSTEM = `You are an analytical labeling assistant for LLM evaluation results. You will receive:
+- A set of LLM run results, each with an ID, the original input, the LLM output, and evaluation scores
+- A labeling instruction from the user describing how to categorize or annotate the results
+
+Your job is to analyze each result according to the user's labeling instruction and assign concise, consistent labels ONLY to results that match the criteria.
+
+Rules:
+- ONLY label results that match the user's criteria (e.g., if they ask for "failed" results, only label those with failing scores)
+- If a result doesn't match the criteria specified in the instruction, return an empty labels array for that result
+- Each matching result should get 1-3 short labels (2-4 words each)
+- Labels should be consistent across results so they can be used for filtering and grouping
+- Use lowercase with hyphens for multi-word labels (e.g., "missing-context", "format-error", "high-quality")
+- Be specific and actionable — avoid vague labels like "bad" or "good"
+- Pay attention to evaluation scores: typically score 0 or "Fail" = failed, score 1 or "Pass" = passed, scores 1-3 = low quality, scores 4-5 = high quality
+
+Return a JSON object with a "labeledResults" field containing an array of objects, one per result, each with "resultId" and "labels" fields. Use empty array for labels if the result doesn't match the criteria.`;
+
 export const IMPROVE_SPEC_SYSTEM = `You are a prompt-engineering improvement assistant. You will receive:
 - The current structured spec
 - A set of labeled run results showing inputs, outputs, eval scores, and labels

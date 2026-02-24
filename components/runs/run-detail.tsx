@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Tag, Sparkles, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Tag,
+  Sparkles,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
 import { useWorkbench } from "@/lib/store";
@@ -24,6 +32,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface RunDetailProps {
   run: Run;
@@ -45,6 +59,9 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
   } = useWorkbench();
 
   const [isImproving, setIsImproving] = useState(false);
+  const [isLabeling, setIsLabeling] = useState(false);
+  const [labelPrompt, setLabelPrompt] = useState("");
+  const [labelPanelOpen, setLabelPanelOpen] = useState(false);
   const [editingLabelsResultId, setEditingLabelsResultId] = useState<
     string | null
   >(null);
@@ -160,6 +177,95 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
     }
   }
 
+  async function handleLabelResults() {
+    if (!labelPrompt.trim()) {
+      toast.error("Please enter a labeling prompt.");
+      return;
+    }
+
+    setIsLabeling(true);
+    try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (apiKey) headers["x-api-key"] = apiKey;
+
+      const resultsData = results.map((r) => {
+        const caseData = cases.find((c) => c.id === r.datasetCaseId);
+        const caseEvalResults = evalResults.filter(
+          (er) => er.runResultId === r.id,
+        );
+        return {
+          id: r.id,
+          input: caseData?.input,
+          output: r.output,
+          evalScores: caseEvalResults.map((er) => ({
+            evalName: evals.find((e) => e.id === er.evalId)?.name ?? "unknown",
+            score: er.score,
+            reason: er.reason,
+          })),
+        };
+      });
+
+      const res = await apiFetch("/api/ai/label-results", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          labelPrompt: labelPrompt.trim(),
+          results: resultsData,
+        }),
+      });
+
+      const { labeledResults } = await res.json();
+
+      if (Array.isArray(labeledResults)) {
+        let labeledCount = 0;
+        for (const lr of labeledResults) {
+          // Skip results with no labels (they didn't match the criteria)
+          if (!lr.labels || lr.labels.length === 0) {
+            continue;
+          }
+          
+          const existingResult = results.find((r) => r.id === lr.resultId);
+          if (existingResult) {
+            const mergedLabels = Array.from(
+              new Set([...existingResult.labels, ...lr.labels]),
+            );
+            updateRunResult({ ...existingResult, labels: mergedLabels });
+            labeledCount++;
+          }
+        }
+        
+        if (labeledCount > 0) {
+          toast.success(`Labeled ${labeledCount} results successfully.`);
+        } else {
+          toast.info("No results matched the labeling criteria.");
+        }
+      }
+    } catch {
+      // apiFetch already shows toast
+    } finally {
+      setIsLabeling(false);
+    }
+  }
+
+  function handleClearAllLabels() {
+    const labeledCount = results.filter((r) => r.labels.length > 0).length;
+    
+    if (labeledCount === 0) {
+      toast.info("No labels to clear.");
+      return;
+    }
+
+    results.forEach((r) => {
+      if (r.labels.length > 0) {
+        updateRunResult({ ...r, labels: [] });
+      }
+    });
+
+    toast.success(`Cleared labels from ${labeledCount} results.`);
+  }
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex items-center justify-between border-b border-border px-6 py-4">
@@ -236,6 +342,102 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
             </div>
           )}
 
+          {/* AI Labeling Panel */}
+          <Collapsible open={labelPanelOpen} onOpenChange={setLabelPanelOpen}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  style={{
+                    display: "flex",
+                    width: "100%",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0.75rem 1rem",
+                    textAlign: "left",
+                    transition: "background-color 0.2s",
+                    borderRadius: "0.5rem",
+                  }}
+                  className="hover:bg-accent/50"
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <Tag style={{ height: "1rem", width: "1rem" }} className="text-muted-foreground" />
+                    <span style={{ fontSize: "0.875rem", fontWeight: 500 }} className="text-foreground">
+                      AI Labeling Assistant
+                    </span>
+                    {results.some((r) => r.labels.length > 0) && (
+                      <Badge variant="secondary" style={{ fontSize: "0.75rem" }}>
+                        {results.filter((r) => r.labels.length > 0).length} labeled
+                      </Badge>
+                    )}
+                  </div>
+                  {labelPanelOpen ? (
+                    <ChevronUp style={{ height: "1rem", width: "1rem" }} className="text-muted-foreground" />
+                  ) : (
+                    <ChevronDown style={{ height: "1rem", width: "1rem" }} className="text-muted-foreground" />
+                  )}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent style={{ paddingTop: 0, paddingBottom: "1rem", paddingLeft: "1rem", paddingRight: "1rem" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    <Textarea
+                      placeholder='e.g., "Explain why each response failed" or "Group outputs by common error type" or "Tag results that violate formatting constraints"'
+                      value={labelPrompt}
+                      onChange={(e) => setLabelPrompt(e.target.value)}
+                      rows={2}
+                      style={{ resize: "none", fontSize: "0.875rem" }}
+                      disabled={isLabeling}
+                    />
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <p style={{ fontSize: "0.75rem" }} className="text-muted-foreground">
+                        The AI will analyze all {results.length} results and apply labels based on your prompt.
+                      </p>
+                      <Button
+                        size="sm"
+                        onClick={handleLabelResults}
+                        disabled={isLabeling || results.length === 0 || !labelPrompt.trim()}
+                      >
+                        {isLabeling ? (
+                          <Loader2 style={{ marginRight: "0.5rem", height: "0.875rem", width: "0.875rem" }} className="animate-spin" />
+                        ) : (
+                          <Tag style={{ marginRight: "0.5rem", height: "0.875rem", width: "0.875rem" }} />
+                        )}
+                        {isLabeling ? "Labeling..." : "Label All Results"}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
+          {/* Clear All Labels Button */}
+          <div style={{ display: "flex", justifyContent: "flex-start" }}>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleClearAllLabels}
+                      disabled={results.filter((r) => r.labels.length > 0).length === 0}
+                    >
+                      <X className="mr-2 h-4 w-4" />
+                      Clear All Labels
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {results.filter((r) => r.labels.length > 0).length === 0 && (
+                  <TooltipContent>
+                    <p className="text-xs">No labels to clear</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+
           {/* Results table */}
           <Table>
             <TableHeader>
@@ -297,7 +499,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                             </pre>
                           </TooltipContent>
                         </Tooltip>
-                          </TooltipProvider>
+                      </TooltipProvider>
                     </TableCell>
                     <TableCell
                       className="min-w-[120px]"
