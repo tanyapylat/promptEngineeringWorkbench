@@ -83,24 +83,34 @@ export function AppShell() {
   const activeProject =
     data.projects.find((p) => p.id === activeProjectId) ?? null;
 
-  function handleCreateProject() {
+  async function handleCreateProject() {
     if (!newProjectName.trim()) return;
-    const project = createProject(newProjectName.trim());
-    setActiveProjectId(project.id);
-    setNewProjectName("");
-    setIsCreating(false);
+    try {
+      const project = await createProject(newProjectName.trim());
+      setActiveProjectId(project.id);
+      setNewProjectName("");
+      setIsCreating(false);
+    } catch (error) {
+      console.error("Failed to create project:", error);
+      alert("Failed to create project. Please try again.");
+    }
   }
 
-  function handleDeleteProject() {
+  async function handleDeleteProject() {
     if (projectToDelete) {
-      deleteProject(projectToDelete);
-      if (activeProjectId === projectToDelete) {
-        setActiveProjectId(
-          data.projects.find((p) => p.id !== projectToDelete)?.id ?? null,
-        );
+      try {
+        await deleteProject(projectToDelete);
+        if (activeProjectId === projectToDelete) {
+          setActiveProjectId(
+            data.projects.find((p) => p.id !== projectToDelete)?.id ?? null,
+          );
+        }
+        setProjectToDelete(null);
+        setDeleteDialogOpen(false);
+      } catch (error) {
+        console.error("Failed to delete project:", error);
+        alert("Failed to delete project. Please try again.");
       }
-      setProjectToDelete(null);
-      setDeleteDialogOpen(false);
     }
   }
 

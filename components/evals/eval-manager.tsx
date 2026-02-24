@@ -66,7 +66,9 @@ export function EvalManager({ projectId }: { projectId: string }) {
         }),
       );
 
-      newEvals.forEach((e) => addEvalDefinition(e));
+      for (const e of newEvals) {
+        await addEvalDefinition(e);
+      }
       toast.success(`Generated ${newEvals.length} evals`);
     } catch {
       // apiFetch already shows toast
@@ -75,27 +77,32 @@ export function EvalManager({ projectId }: { projectId: string }) {
     }
   }
 
-  function handleSaveEval(data: {
+  async function handleSaveEval(data: {
     name: string;
     description: string;
     scoreMode: "pass_fail" | "scale_1_5";
     judgeInstruction: string;
   }) {
-    if (editingEval) {
-      updateEvalDefinition({ ...editingEval, ...data });
-      setEditingEval(null);
-      toast.success("Eval updated");
-    } else {
-      const newEval: EvalDefinition = {
-        id: crypto.randomUUID(),
-        projectId,
-        specVersion: latestSpec?.version ?? 0,
-        ...data,
-        createdAt: new Date().toISOString(),
-      };
-      addEvalDefinition(newEval);
-      setIsCreateOpen(false);
-      toast.success("Eval created");
+    try {
+      if (editingEval) {
+        await updateEvalDefinition({ ...editingEval, ...data });
+        setEditingEval(null);
+        toast.success("Eval updated");
+      } else {
+        const newEval: EvalDefinition = {
+          id: crypto.randomUUID(),
+          projectId,
+          specVersion: latestSpec?.version ?? 0,
+          ...data,
+          createdAt: new Date().toISOString(),
+        };
+        await addEvalDefinition(newEval);
+        setIsCreateOpen(false);
+        toast.success("Eval created");
+      }
+    } catch (error) {
+      console.error("Failed to save eval:", error);
+      toast.error("Failed to save eval");
     }
   }
 

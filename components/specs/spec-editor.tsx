@@ -56,7 +56,7 @@ export function SpecEditor({ projectId }: { projectId: string }) {
 
       const data = await res.json();
       const content: SpecContent = data.spec;
-      const newVersion = addSpecVersion(projectId, content, freeformText);
+      const newVersion = await addSpecVersion(projectId, content, freeformText);
       setSelectedVersionId(newVersion.id);
       toast.success(`Spec v${newVersion.version} created`);
     } catch {
@@ -66,9 +66,14 @@ export function SpecEditor({ projectId }: { projectId: string }) {
     }
   }
 
-  function handleContentUpdate(content: SpecContent) {
+  async function handleContentUpdate(content: SpecContent) {
     if (!selectedVersion) return;
-    updateSpecVersion({ ...selectedVersion, content });
+    try {
+      await updateSpecVersion({ ...selectedVersion, content });
+    } catch (error) {
+      console.error("Failed to update spec version:", error);
+      toast.error("Failed to update spec version");
+    }
   }
 
   return (

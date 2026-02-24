@@ -53,7 +53,7 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
     setLabelsEditValue(c.labels.join(", "));
   }
 
-  function saveInlineLabels() {
+  async function saveInlineLabels() {
     if (editingLabelsCaseId === null) return;
     const next = cases.find((x) => x.id === editingLabelsCaseId);
     if (!next) return;
@@ -61,10 +61,15 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    updateDatasetCase({ ...next, labels });
-    setEditingLabelsCaseId(null);
-    setLabelsEditValue("");
-    toast.success("Labels updated");
+    try {
+      await updateDatasetCase({ ...next, labels });
+      setEditingLabelsCaseId(null);
+      setLabelsEditValue("");
+      toast.success("Labels updated");
+    } catch (error) {
+      console.error("Failed to update labels:", error);
+      toast.error("Failed to update labels");
+    }
   }
 
   async function handleGenerate(
@@ -109,7 +114,7 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
         }),
       );
 
-      addDatasetCases(newCases);
+      await addDatasetCases(newCases);
       toast.success(`Generated ${newCases.length} cases`);
       setIsGenerateOpen(false);
     } catch {
@@ -119,29 +124,34 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
     }
   }
 
-  function handleSaveCase(data: {
+  async function handleSaveCase(data: {
     input: Record<string, unknown>;
     expectedOutput?: string;
     labels: string[];
   }) {
-    if (editingCase) {
-      updateDatasetCase({ ...editingCase, ...data });
-      setEditingCase(null);
-      toast.success("Case updated");
-    } else {
-      const newCase: DatasetCase = {
-        id: crypto.randomUUID(),
-        projectId,
-        input: data.input,
-        expectedOutput: data.expectedOutput,
-        labels: data.labels,
-        createdFromSpecVersion: latestSpec?.version ?? 0,
-        source: "manual",
-        createdAt: new Date().toISOString(),
-      };
-      addDatasetCases([newCase]);
-      setIsCreateOpen(false);
-      toast.success("Case added");
+    try {
+      if (editingCase) {
+        await updateDatasetCase({ ...editingCase, ...data });
+        setEditingCase(null);
+        toast.success("Case updated");
+      } else {
+        const newCase: DatasetCase = {
+          id: crypto.randomUUID(),
+          projectId,
+          input: data.input,
+          expectedOutput: data.expectedOutput,
+          labels: data.labels,
+          createdFromSpecVersion: latestSpec?.version ?? 0,
+          source: "manual",
+          createdAt: new Date().toISOString(),
+        };
+        await addDatasetCases([newCase]);
+        setIsCreateOpen(false);
+        toast.success("Case added");
+      }
+    } catch (error) {
+      console.error("Failed to save case:", error);
+      toast.error("Failed to save case");
     }
   }
 
