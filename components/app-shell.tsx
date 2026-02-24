@@ -24,6 +24,7 @@ import {
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
+  SidebarFooter,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -76,6 +77,7 @@ export function AppShell() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const [projectNameError, setProjectNameError] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
@@ -85,14 +87,33 @@ export function AppShell() {
 
   async function handleCreateProject() {
     if (!newProjectName.trim()) return;
+    
+    // Check for duplicate project name (case-insensitive)
+    const trimmedName = newProjectName.trim();
+    const duplicate = data.projects.find(
+      (p) => p.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+    
+    if (duplicate) {
+      setProjectNameError("A project with this name already exists");
+      return;
+    }
+    
     try {
-      const project = await createProject(newProjectName.trim());
+      const project = await createProject(trimmedName);
       setActiveProjectId(project.id);
       setNewProjectName("");
+      setProjectNameError("");
       setIsCreating(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create project:", error);
-      alert("Failed to create project. Please try again.");
+      
+      // Try to parse backend validation error
+      if (error.message?.includes("already exists")) {
+        setProjectNameError("A project with this name already exists");
+      } else {
+        setProjectNameError("Failed to create project. Please try again.");
+      }
     }
   }
 
@@ -176,10 +197,17 @@ export function AppShell() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56" align="start">
+              <DropdownMenuItem onSelect={() => setIsCreating(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                New Project
+              </DropdownMenuItem>
+              {data.projects.length > 0 && <DropdownMenuSeparator />}
               {data.projects.map((p) => (
                 <DropdownMenuItem
                   key={p.id}
-                  className="flex items-center justify-between"
+                  className={`flex items-center justify-between ${
+                    activeProjectId === p.id ? "bg-blue-50 dark:bg-blue-950" : ""
+                  }`}
                   onSelect={() => setActiveProjectId(p.id)}
                 >
                   <span className="truncate">{p.name}</span>
@@ -196,14 +224,63 @@ export function AppShell() {
                   </button>
                 </DropdownMenuItem>
               ))}
-              {data.projects.length > 0 && <DropdownMenuSeparator />}
-              <DropdownMenuItem onSelect={() => setIsCreating(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                New Project
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Inline new project form */}
+          {isCreating && (
+            <div className="flex flex-col gap-1">
+              <form
+                className="flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleCreateProject();
+                }}
+              >
+                <Input
+                  autoFocus
+                  placeholder="Project name..."
+                  value={newProjectName}
+                  onChange={(e) => {
+                    setNewProjectName(e.target.value);
+                    setProjectNameError("");
+                  }}
+                  className="h-8 text-sm"
+                />
+                <Button type="submit" size="sm" className="h-8 shrink-0">
+                  Create
+                </Button>
+              </form>
+              {projectNameError && (
+                <p className="text-xs text-destructive">{projectNameError}</p>
+              )}
+            </div>
+          )}
+        </SidebarHeader>
+
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Workflow</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {NAV_ITEMS.map((item) => (
+                  <SidebarMenuItem key={item.id}>
+                    <SidebarMenuButton
+                      isActive={activeSection === item.id}
+                      onClick={() => setActiveSection(item.id)}
+                      tooltip={item.label}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+
+        <SidebarFooter className="p-4">
           {/* API Key (session-only) */}
           <Popover>
             <PopoverTrigger asChild>
@@ -268,51 +345,7 @@ export function AppShell() {
               </div>
             </PopoverContent>
           </Popover>
-
-          {/* Inline new project form */}
-          {isCreating && (
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleCreateProject();
-              }}
-            >
-              <Input
-                autoFocus
-                placeholder="Project name..."
-                value={newProjectName}
-                onChange={(e) => setNewProjectName(e.target.value)}
-                className="h-8 text-sm"
-              />
-              <Button type="submit" size="sm" className="h-8 shrink-0">
-                Create
-              </Button>
-            </form>
-          )}
-        </SidebarHeader>
-
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Workflow</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {NAV_ITEMS.map((item) => (
-                  <SidebarMenuItem key={item.id}>
-                    <SidebarMenuButton
-                      isActive={activeSection === item.id}
-                      onClick={() => setActiveSection(item.id)}
-                      tooltip={item.label}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
+        </SidebarFooter>
       </Sidebar>
 
       <SidebarInset>
@@ -335,7 +368,7 @@ export function AppShell() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteProject}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-white hover:bg-destructive/90"
             >
               Delete
             </AlertDialogAction>

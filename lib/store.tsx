@@ -323,7 +323,8 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     });
 
     if (!response.ok) {
-      throw new Error("Failed to create project");
+      const errorData = await response.json();
+      throw new Error(errorData.error || "Failed to create project");
     }
 
     const project = await response.json();

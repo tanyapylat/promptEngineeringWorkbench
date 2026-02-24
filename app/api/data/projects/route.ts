@@ -30,6 +30,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for duplicate project name (case-insensitive)
+    const existingProject = await prisma.project.findFirst({
+      where: {
+        name: {
+          equals: name,
+          mode: "insensitive",
+        },
+      },
+    });
+
+    if (existingProject) {
+      return NextResponse.json(
+        { error: "A project with this name already exists" },
+        { status: 400 },
+      );
+    }
+
     const project = await prisma.project.create({
       data: { name },
     });
