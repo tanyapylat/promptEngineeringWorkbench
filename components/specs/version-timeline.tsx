@@ -1,19 +1,20 @@
-"use client";
+'use client';
 
-import { Pin } from "lucide-react";
-import type { SpecVersion } from "@/lib/types";
+import { Pin } from 'lucide-react';
+import type { SpecVersion } from '@/lib/types';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from '@/components/ui/tooltip';
 
 interface VersionTimelineProps {
   versions: SpecVersion[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onPin: (id: string) => void;
+  showLabel?: boolean;
 }
 
 export function VersionTimeline({
@@ -21,10 +22,15 @@ export function VersionTimeline({
   selectedId,
   onSelect,
   onPin,
+  showLabel = true,
 }: VersionTimelineProps) {
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-sm font-semibold text-foreground">Version History</h3>
+      {showLabel && (
+        <h3 className="text-sm font-semibold text-foreground">
+          Version History
+        </h3>
+      )}
       <TooltipProvider>
         <div className="flex flex-wrap gap-2">
           {versions.map((v) => (
@@ -35,13 +41,13 @@ export function VersionTimeline({
                     onClick={() => onSelect(v.id)}
                     className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors ${
                       v.id === selectedId
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-border bg-background text-foreground hover:bg-secondary"
+                        ? 'border-foreground bg-foreground text-background'
+                        : 'border-border bg-background text-foreground hover:bg-secondary'
                     }`}
                   >
                     <span className="font-mono">
                       v{v.version}
-                      {v.status === "draft" && (
+                      {v.status === 'draft' && (
                         <span className="text-xs ml-1 opacity-60">(draft)</span>
                       )}
                     </span>
@@ -54,7 +60,7 @@ export function VersionTimeline({
                   <p className="text-xs">{v.comment}</p>
                 </TooltipContent>
               </Tooltip>
-              {v.status === "draft" ? (
+              {v.status === 'draft' ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
@@ -65,26 +71,30 @@ export function VersionTimeline({
                     </button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
-                    <p className="text-xs">Commit this version first before pinning</p>
+                    <p className="text-xs">
+                      Commit this version first before pinning
+                    </p>
                   </TooltipContent>
                 </Tooltip>
-              ) : !v.isPinned && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPin(v.id);
-                      }}
-                      className="rounded-md p-1 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors"
-                    >
-                      <Pin className="h-3 w-3" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p className="text-xs">Pin this version</p>
-                  </TooltipContent>
-                </Tooltip>
+              ) : (
+                !v.isPinned && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onPin(v.id);
+                        }}
+                        className="rounded-md p-1 text-slate-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors"
+                      >
+                        <Pin className="h-3 w-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-xs">Pin this version</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )
               )}
             </div>
           ))}

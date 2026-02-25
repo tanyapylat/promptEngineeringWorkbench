@@ -324,7 +324,15 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                 <TableHead className="min-w-[120px]">Label</TableHead>
                 {activeEvalDefs.map((e) => (
                   <TableHead key={e.id} className="w-24 text-center">
-                    {e.name}
+                    <span className="flex items-center justify-center gap-1">
+                      {e.name}
+                      <Badge
+                        variant="secondary"
+                        className="px-1 py-0 text-[10px] leading-tight font-mono"
+                      >
+                        v{e.specVersion}
+                      </Badge>
+                    </span>
                   </TableHead>
                 ))}
               </TableRow>
