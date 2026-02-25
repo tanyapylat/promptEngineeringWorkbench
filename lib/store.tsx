@@ -205,6 +205,7 @@ interface WorkbenchContextValue {
     comment: string,
   ) => Promise<SpecVersion>;
   updateSpecVersion: (sv: SpecVersion) => Promise<void>;
+  updateSpecVersionLocal: (sv: SpecVersion) => void;
   deleteSpecVersion: (id: string) => Promise<void>;
   pinSpecVersion: (id: string) => Promise<void>;
   getSpecVersionsForProject: (projectId: string) => SpecVersion[];
@@ -416,6 +417,10 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
 
     const updatedSpecVersion = await response.json();
     dispatch({ type: "UPDATE_SPEC_VERSION", specVersion: updatedSpecVersion });
+  }, []);
+
+  const updateSpecVersionLocal = useCallback((sv: SpecVersion) => {
+    dispatch({ type: "UPDATE_SPEC_VERSION", specVersion: sv });
   }, []);
 
   const deleteSpecVersion = useCallback(async (id: string) => {
@@ -785,6 +790,7 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
     deleteProject,
     addSpecVersion,
     updateSpecVersion,
+    updateSpecVersionLocal,
     deleteSpecVersion,
     pinSpecVersion,
     getSpecVersionsForProject,

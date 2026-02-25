@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkbench } from "@/lib/store";
@@ -27,6 +27,7 @@ export function SpecEditor({ projectId }: { projectId: string }) {
     getCommittedSpecs,
     addSpecVersion,
     updateSpecVersion,
+    updateSpecVersionLocal,
     deleteSpecVersion,
     pinSpecVersion,
     isVersionEditable,
@@ -51,6 +52,22 @@ export function SpecEditor({ projectId }: { projectId: string }) {
   
   // Track if we're currently creating a draft to prevent duplicates
   const isCreatingDraftRef = useRef(false);
+
+  // Debounce timer for PATCH api/data/spec-versions calls
+  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedUpdateSpecVersion = useCallback(
+    (sv: Parameters<typeof updateSpecVersion>[0], delayMs = 500) => {
+      if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
+      saveDebounceRef.current = setTimeout(() => {
+        updateSpecVersion(sv).catch((err) => {
+          console.error("Failed to save spec version:", err);
+          toast.error("Failed to save spec version");
+        });
+      }, delayMs);
+    },
+    [updateSpecVersion],
+  );
 
   const selectedVersion =
     versions.find((v) => v.id === selectedVersionId) ?? latestSpec ?? null;
@@ -170,13 +187,10 @@ export function SpecEditor({ projectId }: { projectId: string }) {
       return;
     }
     
-    // Update the current draft in-place
-    try {
-      await updateSpecVersion({ ...selectedVersion, content });
-    } catch (error) {
-      console.error("Failed to update spec version:", error);
-      toast.error("Failed to update spec version");
-    }
+    // Update the current draft in-place — optimistic local update + debounced API call
+    const updated = { ...selectedVersion, content };
+    updateSpecVersionLocal(updated);
+    debouncedUpdateSpecVersion(updated);
   }
 
   async function handleCommentChange(newComment: string) {
@@ -214,11 +228,10 @@ export function SpecEditor({ projectId }: { projectId: string }) {
       return;
     }
     
-    // Update the current draft in-place
-    updateSpecVersion({
-      ...selectedVersion,
-      comment: newComment,
-    });
+    // Update the current draft in-place — optimistic local update + debounced API call
+    const updated = { ...selectedVersion, comment: newComment };
+    updateSpecVersionLocal(updated);
+    debouncedUpdateSpecVersion(updated);
   }
 
   async function handleCommitVersion() {
