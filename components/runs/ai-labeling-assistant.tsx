@@ -1,33 +1,40 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Tag, Loader2, ChevronDown, ChevronUp } from "lucide-react";
-import { toast } from "sonner";
-import { apiFetch } from "@/lib/api";
-import type { RunResult, DatasetCase, EvalResult, EvalDef } from "@/lib/types";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
+import { useState } from 'react';
+import { Tag, Loader2, ChevronDown, ChevronUp, Wand2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { apiFetch } from '@/lib/api';
+import type {
+  RunResult,
+  DatasetCase,
+  EvalResult,
+  EvalDefinition,
+  SpecContent,
+} from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+} from '@/components/ui/collapsible';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from '@/components/ui/tooltip';
 
 interface AiLabelingAssistantProps {
   results: RunResult[];
   cases: DatasetCase[];
   evalResults: EvalResult[];
-  evals: EvalDef[];
+  evals: EvalDefinition[];
   runStatus: string;
   apiKey?: string;
+  spec?: SpecContent | null;
   onUpdateResult: (result: RunResult) => void;
 }
 
@@ -38,24 +45,53 @@ export function AiLabelingAssistant({
   evals,
   runStatus,
   apiKey,
+  spec,
   onUpdateResult,
 }: AiLabelingAssistantProps) {
   const [isLabeling, setIsLabeling] = useState(false);
-  const [labelPrompt, setLabelPrompt] = useState("");
+  const [isGeneratingPersona, setIsGeneratingPersona] = useState(false);
+  const [labelPrompt, setLabelPrompt] = useState('');
   const [labelPanelOpen, setLabelPanelOpen] = useState(false);
+
+  async function handleGeneratePersona() {
+    if (!spec) return;
+    setIsGeneratingPersona(true);
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (apiKey) headers['x-api-key'] = apiKey;
+
+      const res = await apiFetch('/api/ai/generate-persona', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ spec }),
+      });
+
+      const { persona } = await res.json();
+      if (persona) {
+        setLabelPrompt(persona);
+        toast.success('Persona generated — review and run labeling.');
+      }
+    } catch {
+      // apiFetch already shows toast
+    } finally {
+      setIsGeneratingPersona(false);
+    }
+  }
 
   async function handleLabelResults() {
     if (!labelPrompt.trim()) {
-      toast.error("Please enter a labeling prompt.");
+      toast.error('Please enter a labeling prompt.');
       return;
     }
 
     setIsLabeling(true);
     try {
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       };
-      if (apiKey) headers["x-api-key"] = apiKey;
+      if (apiKey) headers['x-api-key'] = apiKey;
 
       const resultsData = results.map((r) => {
         const caseData = cases.find((c) => c.id === r.datasetCaseId);
@@ -67,15 +103,15 @@ export function AiLabelingAssistant({
           input: caseData?.input,
           output: r.output,
           evalScores: caseEvalResults.map((er) => ({
-            evalName: evals.find((e) => e.id === er.evalId)?.name ?? "unknown",
+            evalName: evals.find((e) => e.id === er.evalId)?.name ?? 'unknown',
             score: er.score,
             reason: er.reason,
           })),
         };
       });
 
-      const res = await apiFetch("/api/ai/label-results", {
-        method: "POST",
+      const res = await apiFetch('/api/ai/label-results', {
+        method: 'POST',
         headers,
         body: JSON.stringify({
           labelPrompt: labelPrompt.trim(),
@@ -105,7 +141,7 @@ export function AiLabelingAssistant({
         if (labeledCount > 0) {
           toast.success(`Labeled ${labeledCount} results successfully.`);
         } else {
-          toast.info("No results matched the labeling criteria.");
+          toast.info('No improvement opportunities spotted.');
         }
       }
     } catch {
@@ -116,7 +152,7 @@ export function AiLabelingAssistant({
   }
 
   const labeledCount = results.filter((r) => r.labels.length > 0).length;
-  
+
   // Disable labeling only if this specific run has no results yet
   // (regardless of the run status - if results exist, the run is complete enough to label)
   const canLabel = results.length > 0;
@@ -128,83 +164,194 @@ export function AiLabelingAssistant({
           <button
             type="button"
             style={{
-              display: "flex",
-              width: "100%",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "0.75rem 1rem",
-              textAlign: "left",
-              transition: "background-color 0.2s",
-              borderRadius: "0.5rem",
+              display: 'flex',
+              width: '100%',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.75rem 1rem',
+              textAlign: 'left',
+              transition: 'background-color 0.2s',
+              borderRadius: '0.5rem',
             }}
             className="hover:bg-accent/50"
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Tag style={{ height: "1rem", width: "1rem" }} className="text-muted-foreground" />
-              <span style={{ fontSize: "0.875rem", fontWeight: 500 }} className="text-foreground">
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            >
+              <Tag
+                style={{ height: '1rem', width: '1rem' }}
+                className="text-muted-foreground"
+              />
+              <span
+                style={{ fontSize: '0.875rem', fontWeight: 500 }}
+                className="text-foreground"
+              >
                 AI Labeling Assistant
               </span>
               {labeledCount > 0 && (
-                <Badge variant="secondary" style={{ fontSize: "0.75rem" }}>
+                <Badge variant="secondary" style={{ fontSize: '0.75rem' }}>
                   {labeledCount} labeled
                 </Badge>
               )}
             </div>
             {labelPanelOpen ? (
-              <ChevronUp style={{ height: "1rem", width: "1rem" }} className="text-muted-foreground" />
+              <ChevronUp
+                style={{ height: '1rem', width: '1rem' }}
+                className="text-muted-foreground"
+              />
             ) : (
-              <ChevronDown style={{ height: "1rem", width: "1rem" }} className="text-muted-foreground" />
+              <ChevronDown
+                style={{ height: '1rem', width: '1rem' }}
+                className="text-muted-foreground"
+              />
             )}
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <CardContent style={{ paddingTop: 0, paddingBottom: "1rem", paddingLeft: "1rem", paddingRight: "1rem" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                <p style={{ fontSize: "0.75rem" }} className="text-muted-foreground">
-                  Describe how you want to categorize or annotate the results. The AI will analyze each result's input, output, and evaluation scores, then apply consistent labels ONLY to results matching your criteria. Examples: "Label failed outputs by error type", "Tag responses with formatting issues", "Identify results missing required fields".
+          <CardContent
+            style={{
+              paddingTop: 0,
+              paddingBottom: '1rem',
+              paddingLeft: '1rem',
+              paddingRight: '1rem',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                }}
+              >
+                <p
+                  style={{ fontSize: '0.75rem' }}
+                  className="text-muted-foreground"
+                >
+                  Describe an analysis angle or expert perspective to spot
+                  improvement opportunities across all results. Use "Generate
+                  Persona" to auto-create one from the current spec.
                 </p>
                 <Textarea
-                  placeholder='e.g., "Label failed results by common error patterns" or "Tag outputs that violate formatting constraints" or "Identify results with low scores due to missing context"'
+                  placeholder='e.g., "As a senior UX writer I want outputs to be concise and action-oriented" or "From a legal compliance perspective, outputs must avoid unqualified claims"'
                   value={labelPrompt}
                   onChange={(e) => setLabelPrompt(e.target.value)}
-                  rows={2}
-                  style={{ resize: "none", fontSize: "0.875rem" }}
-                  disabled={isLabeling || !canLabel}
+                  rows={3}
+                  style={{ resize: 'none', fontSize: '0.875rem' }}
+                  disabled={isLabeling || isGeneratingPersona || !canLabel}
                 />
               </div>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <p style={{ fontSize: "0.75rem" }} className="text-muted-foreground">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.5rem',
+                }}
+              >
+                <p
+                  style={{ fontSize: '0.75rem' }}
+                  className="text-muted-foreground"
+                >
                   {!canLabel
-                    ? "This run has no results yet. Labeling will be available once results are generated."
-                    : `The AI will analyze all ${results.length} results and apply labels based on your prompt.`
-                  }
+                    ? 'No results yet — labeling will be available once results are generated.'
+                    : `The AI will analyze all ${results.length} results and spot improvement opportunities.`}
                 </p>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span>
-                        <Button
-                          size="sm"
-                          onClick={handleLabelResults}
-                          disabled={isLabeling || !canLabel || !labelPrompt.trim()}
-                        >
-                          {isLabeling ? (
-                            <Loader2 style={{ marginRight: "0.5rem", height: "0.875rem", width: "0.875rem" }} className="animate-spin" />
-                          ) : (
-                            <Tag style={{ marginRight: "0.5rem", height: "0.875rem", width: "0.875rem" }} />
-                          )}
-                          {isLabeling ? "Labeling..." : "Label All Results"}
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
-                    {!canLabel && (
-                      <TooltipContent>
-                        <p className="text-xs">No results available to label yet</p>
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
+                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                  {spec && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={handleGeneratePersona}
+                            disabled={isGeneratingPersona || isLabeling}
+                          >
+                            {isGeneratingPersona ? (
+                              <Loader2
+                                style={{
+                                  marginRight: '0.5rem',
+                                  height: '0.875rem',
+                                  width: '0.875rem',
+                                }}
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <Wand2
+                                style={{
+                                  marginRight: '0.5rem',
+                                  height: '0.875rem',
+                                  width: '0.875rem',
+                                }}
+                              />
+                            )}
+                            {isGeneratingPersona
+                              ? 'Generating...'
+                              : 'Generate Persona'}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">
+                            Auto-generate a synthetic expert persona from the
+                            current spec
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button
+                            size="sm"
+                            onClick={handleLabelResults}
+                            disabled={
+                              isLabeling ||
+                              isGeneratingPersona ||
+                              !canLabel ||
+                              !labelPrompt.trim()
+                            }
+                          >
+                            {isLabeling ? (
+                              <Loader2
+                                style={{
+                                  marginRight: '0.5rem',
+                                  height: '0.875rem',
+                                  width: '0.875rem',
+                                }}
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <Tag
+                                style={{
+                                  marginRight: '0.5rem',
+                                  height: '0.875rem',
+                                  width: '0.875rem',
+                                }}
+                              />
+                            )}
+                            {isLabeling ? 'Labeling...' : 'Label All Results'}
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {!canLabel && (
+                        <TooltipContent>
+                          <p className="text-xs">
+                            No results available to label yet
+                          </p>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
             </div>
           </CardContent>
