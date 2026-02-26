@@ -1,20 +1,15 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import {
-  ArrowLeft,
-  Sparkles,
-  Loader2,
-  X,
-} from "lucide-react";
-import { toast } from "sonner";
-import { apiFetch } from "@/lib/api";
-import { useWorkbench } from "@/lib/store";
-import type { Run, RunResult, SpecContent } from "@/lib/types";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState } from 'react';
+import { ArrowLeft, Sparkles, Loader2, X } from 'lucide-react';
+import { toast } from 'sonner';
+import { apiFetch } from '@/lib/api';
+import { useWorkbench } from '@/lib/store';
+import type { Run, RunResult, SpecContent } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -22,14 +17,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { AiLabelingAssistant } from "./ai-labeling-assistant";
+} from '@/components/ui/tooltip';
+import { AiLabelingAssistant } from './ai-labeling-assistant';
 
 interface RunDetailProps {
   run: Run;
@@ -56,11 +51,11 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
   const [editingLabelsResultId, setEditingLabelsResultId] = useState<
     string | null
   >(null);
-  const [labelsEditValue, setLabelsEditValue] = useState("");
+  const [labelsEditValue, setLabelsEditValue] = useState('');
 
   function startInlineLabelsEdit(r: RunResult) {
     setEditingLabelsResultId(r.id);
-    setLabelsEditValue(r.labels.join(", "));
+    setLabelsEditValue(r.labels.join(', '));
   }
 
   function saveInlineLabels() {
@@ -68,14 +63,14 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
     const result = results.find((r) => r.id === editingLabelsResultId);
     if (result) {
       const labels = labelsEditValue
-        .split(",")
+        .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
       updateRunResult({ ...result, labels });
-      toast.success("Labels updated");
+      toast.success('Labels updated');
     }
     setEditingLabelsResultId(null);
-    setLabelsEditValue("");
+    setLabelsEditValue('');
   }
 
   const results = getRunResults(run.id);
@@ -107,16 +102,16 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
   async function handleImproveSpec() {
     const pinnedSpec = getPinnedSpec(projectId);
     if (!pinnedSpec) {
-      toast.error("No pinned spec found. Please commit a spec version first.");
+      toast.error('No pinned spec found. Please commit a spec version first.');
       return;
     }
 
     setIsImproving(true);
     try {
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       };
-      if (apiKey) headers["x-api-key"] = apiKey;
+      if (apiKey) headers['x-api-key'] = apiKey;
 
       const resultsData = results.map((r) => {
         const caseData = cases.find((c) => c.id === r.datasetCaseId);
@@ -128,15 +123,15 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
           output: r.output,
           labels: r.labels,
           evalScores: caseEvalResults.map((er) => ({
-            evalName: evals.find((e) => e.id === er.evalId)?.name ?? "unknown",
+            evalName: evals.find((e) => e.id === er.evalId)?.name ?? 'unknown',
             score: er.score,
             reason: er.reason,
           })),
         };
       });
 
-      const res = await apiFetch("/api/ai/improve-spec", {
-        method: "POST",
+      const res = await apiFetch('/api/ai/improve-spec', {
+        method: 'POST',
         headers,
         body: JSON.stringify({
           spec: pinnedSpec.content,
@@ -154,10 +149,10 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
       };
 
       const improvementComment = `Self-improvement based on run results. ${resData.spec.improvement_notes}`;
-      
+
       // Check if a draft already exists
       const existingDraft = getDraftSpec(projectId);
-      
+
       if (existingDraft) {
         // Update the existing draft
         await updateSpecVersion({
@@ -170,13 +165,9 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
         );
       } else {
         // Create a new draft
-        await addSpecVersion(
-          projectId,
-          improved,
-          improvementComment,
-        );
+        await addSpecVersion(projectId, improved, improvementComment);
         toast.success(
-          "Improved spec created as a new draft version. Switch to the Specs section to review and commit.",
+          'Improved spec created as a new draft version. Switch to the Specs section to review and commit.',
         );
       }
     } catch {
@@ -188,9 +179,9 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
 
   async function handleClearAllLabels() {
     const labeledCount = results.filter((r) => r.labels.length > 0).length;
-    
+
     if (labeledCount === 0) {
-      toast.info("No labels to clear.");
+      toast.info('No labels to clear.');
       return;
     }
 
@@ -202,8 +193,8 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
       }
       toast.success(`Cleared labels from ${labeledCount} results.`);
     } catch (error) {
-      console.error("Failed to clear labels:", error);
-      toast.error("Failed to clear labels");
+      console.error('Failed to clear labels:', error);
+      toast.error('Failed to clear labels');
     }
   }
 
@@ -248,7 +239,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
           ) : (
             <Sparkles className="mr-2 h-4 w-4" />
           )}
-          {isImproving ? "Improving..." : "Improve Spec from Results"}
+          {isImproving ? 'Improving...' : 'Improve Spec from Results'}
         </Button>
       </div>
 
@@ -261,7 +252,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                 ([evalId, { scores, name, mode }]) => {
                   const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
                   const display =
-                    mode === "pass_fail"
+                    mode === 'pass_fail'
                       ? `${Math.round(avg * 100)}% pass`
                       : `${avg.toFixed(1)} / 5`;
 
@@ -291,11 +282,12 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
             evals={evals}
             runStatus={run.status}
             apiKey={apiKey}
+            spec={getPinnedSpec(projectId)?.content ?? null}
             onUpdateResult={updateRunResult}
           />
 
           {/* Clear All Labels Button */}
-          <div style={{ display: "flex", justifyContent: "flex-start" }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -304,7 +296,9 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                       variant="outline"
                       size="sm"
                       onClick={handleClearAllLabels}
-                      disabled={results.filter((r) => r.labels.length > 0).length === 0}
+                      disabled={
+                        results.filter((r) => r.labels.length > 0).length === 0
+                      }
                     >
                       <X className="mr-2 h-4 w-4" />
                       Clear All Labels
@@ -330,7 +324,15 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                 <TableHead className="min-w-[120px]">Label</TableHead>
                 {activeEvalDefs.map((e) => (
                   <TableHead key={e.id} className="w-24 text-center">
-                    {e.name}
+                    <span className="flex items-center justify-center gap-1">
+                      {e.name}
+                      <Badge
+                        variant="secondary"
+                        className="px-1 py-0 text-[10px] leading-tight font-mono"
+                      >
+                        v{e.specVersion}
+                      </Badge>
+                    </span>
                   </TableHead>
                 ))}
               </TableRow>
@@ -354,14 +356,14 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                             <span className="block truncate font-mono text-xs">
                               {caseData
                                 ? JSON.stringify(caseData.input).slice(0, 80)
-                                : "N/A"}
+                                : 'N/A'}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="bottom" className="max-w-lg">
                             <pre className="whitespace-pre-wrap text-xs">
                               {caseData
                                 ? JSON.stringify(caseData.input, null, 2)
-                                : "N/A"}
+                                : 'N/A'}
                             </pre>
                           </TooltipContent>
                         </Tooltip>
@@ -393,10 +395,10 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                           onChange={(e) => setLabelsEditValue(e.target.value)}
                           onBlur={saveInlineLabels}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") saveInlineLabels();
-                            if (e.key === "Escape") {
+                            if (e.key === 'Enter') saveInlineLabels();
+                            if (e.key === 'Escape') {
                               setEditingLabelsResultId(null);
-                              setLabelsEditValue("");
+                              setLabelsEditValue('');
                             }
                           }}
                           placeholder="label1, label2"
@@ -411,7 +413,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                           role="button"
                           tabIndex={0}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
+                            if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault();
                               startInlineLabelsEdit(r);
                             }
@@ -449,7 +451,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                         );
                       }
                       const isGood =
-                        e.scoreMode === "pass_fail"
+                        e.scoreMode === 'pass_fail'
                           ? er.score === 1
                           : er.score >= 4;
 
@@ -461,14 +463,14 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                                 <span
                                   className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium ${
                                     isGood
-                                      ? "bg-green-50 text-green-700"
-                                      : "bg-red-50 text-red-700"
+                                      ? 'bg-green-50 text-green-700'
+                                      : 'bg-red-50 text-red-700'
                                   }`}
                                 >
-                                  {e.scoreMode === "pass_fail"
+                                  {e.scoreMode === 'pass_fail'
                                     ? er.score === 1
-                                      ? "Pass"
-                                      : "Fail"
+                                      ? 'Pass'
+                                      : 'Fail'
                                     : `${er.score}/5`}
                                 </span>
                               </TooltipTrigger>

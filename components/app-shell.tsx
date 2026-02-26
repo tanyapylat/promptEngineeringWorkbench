@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 import {
   FileText,
   Database,
@@ -14,9 +14,10 @@ import {
   Check,
   Eye,
   EyeOff,
-} from "lucide-react";
-import { useWorkbench } from "@/lib/store";
-import type { SectionId } from "@/lib/types";
+  Pin,
+} from 'lucide-react';
+import { useWorkbench } from '@/lib/store';
+import type { SectionId } from '@/lib/types';
 import {
   Sidebar,
   SidebarContent,
@@ -30,14 +31,14 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarInset,
-} from "@/components/ui/sidebar";
+} from '@/components/ui/sidebar';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,37 +48,49 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from '@/components/ui/tooltip';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from '@/components/ui/popover';
 
-import { SpecEditor } from "@/components/specs/spec-editor";
-import { DatasetBrowser } from "@/components/dataset/dataset-browser";
-import { PromptList } from "@/components/prompts/prompt-list";
-import { EvalManager } from "@/components/evals/eval-manager";
-import { RunsSection } from "@/components/runs/runs-section";
+import { SpecEditor } from '@/components/specs/spec-editor';
+import { DatasetBrowser } from '@/components/dataset/dataset-browser';
+import { PromptList } from '@/components/prompts/prompt-list';
+import { EvalManager } from '@/components/evals/eval-manager';
+import { RunsSection } from '@/components/runs/runs-section';
 
 const NAV_ITEMS: { id: SectionId; label: string; icon: React.ElementType }[] = [
-  { id: "specs", label: "Specs", icon: FileText },
-  { id: "dataset", label: "Dataset", icon: Database },
-  { id: "prompts", label: "Prompts", icon: MessageSquare },
-  { id: "evals", label: "Evals", icon: ClipboardCheck },
-  { id: "runs", label: "Runs", icon: Play },
+  { id: 'specs', label: 'Specs', icon: FileText },
+  { id: 'dataset', label: 'Dataset', icon: Database },
+  { id: 'prompts', label: 'Prompts', icon: MessageSquare },
+  { id: 'evals', label: 'Evals', icon: ClipboardCheck },
+  { id: 'runs', label: 'Runs', icon: Play },
 ];
 
 export function AppShell() {
-  const { data, createProject, deleteProject, apiKey, setApiKey } =
-    useWorkbench();
-  const [activeSection, setActiveSection] = useState<SectionId>("specs");
+  const {
+    data,
+    createProject,
+    deleteProject,
+    apiKey,
+    setApiKey,
+    getPinnedSpec,
+  } = useWorkbench();
+  const [activeSection, setActiveSection] = useState<SectionId>('specs');
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [projectNameError, setProjectNameError] = useState("");
+  const [newProjectName, setNewProjectName] = useState('');
+  const [projectNameError, setProjectNameError] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
@@ -85,34 +98,38 @@ export function AppShell() {
   const activeProject =
     data.projects.find((p) => p.id === activeProjectId) ?? null;
 
+  const pinnedSpec = activeProjectId
+    ? getPinnedSpec(activeProjectId)
+    : undefined;
+
   async function handleCreateProject() {
     if (!newProjectName.trim()) return;
-    
+
     // Check for duplicate project name (case-insensitive)
     const trimmedName = newProjectName.trim();
     const duplicate = data.projects.find(
-      (p) => p.name.toLowerCase() === trimmedName.toLowerCase()
+      (p) => p.name.toLowerCase() === trimmedName.toLowerCase(),
     );
-    
+
     if (duplicate) {
-      setProjectNameError("A project with this name already exists");
+      setProjectNameError('A project with this name already exists');
       return;
     }
-    
+
     try {
       const project = await createProject(trimmedName);
       setActiveProjectId(project.id);
-      setNewProjectName("");
-      setProjectNameError("");
+      setNewProjectName('');
+      setProjectNameError('');
       setIsCreating(false);
     } catch (error: any) {
-      console.error("Failed to create project:", error);
-      
+      console.error('Failed to create project:', error);
+
       // Try to parse backend validation error
-      if (error.message?.includes("already exists")) {
-        setProjectNameError("A project with this name already exists");
+      if (error.message?.includes('already exists')) {
+        setProjectNameError('A project with this name already exists');
       } else {
-        setProjectNameError("Failed to create project. Please try again.");
+        setProjectNameError('Failed to create project. Please try again.');
       }
     }
   }
@@ -129,8 +146,8 @@ export function AppShell() {
         setProjectToDelete(null);
         setDeleteDialogOpen(false);
       } catch (error) {
-        console.error("Failed to delete project:", error);
-        alert("Failed to delete project. Please try again.");
+        console.error('Failed to delete project:', error);
+        alert('Failed to delete project. Please try again.');
       }
     }
   }
@@ -160,15 +177,15 @@ export function AppShell() {
     }
 
     switch (activeSection) {
-      case "specs":
+      case 'specs':
         return <SpecEditor projectId={activeProject.id} />;
-      case "dataset":
+      case 'dataset':
         return <DatasetBrowser projectId={activeProject.id} />;
-      case "prompts":
+      case 'prompts':
         return <PromptList projectId={activeProject.id} />;
-      case "evals":
+      case 'evals':
         return <EvalManager projectId={activeProject.id} />;
-      case "runs":
+      case 'runs':
         return <RunsSection projectId={activeProject.id} />;
       default:
         return null;
@@ -191,7 +208,7 @@ export function AppShell() {
                 className="w-full justify-between text-left font-normal"
               >
                 <span className="truncate text-sm">
-                  {activeProject ? activeProject.name : "Select project..."}
+                  {activeProject ? activeProject.name : 'Select project...'}
                 </span>
                 <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
@@ -206,7 +223,9 @@ export function AppShell() {
                 <DropdownMenuItem
                   key={p.id}
                   className={`flex items-center justify-between ${
-                    activeProjectId === p.id ? "bg-blue-50 dark:bg-blue-950" : ""
+                    activeProjectId === p.id
+                      ? 'bg-blue-50 dark:bg-blue-950'
+                      : ''
                   }`}
                   onSelect={() => setActiveProjectId(p.id)}
                 >
@@ -227,6 +246,27 @@ export function AppShell() {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Pinned spec indicator */}
+          {activeProject && pinnedSpec && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex cursor-default items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 dark:border-amber-800 dark:bg-amber-950/30">
+                    <Pin className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+                      Spec v{pinnedSpec.version} pinned
+                    </p>
+                  </div>
+                </TooltipTrigger>
+                {pinnedSpec.comment && (
+                  <TooltipContent side="right" className="max-w-56">
+                    <p className="text-xs">{pinnedSpec.comment}</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
           {/* Inline new project form */}
           {isCreating && (
             <div className="flex flex-col gap-1">
@@ -243,7 +283,7 @@ export function AppShell() {
                   value={newProjectName}
                   onChange={(e) => {
                     setNewProjectName(e.target.value);
-                    setProjectNameError("");
+                    setProjectNameError('');
                   }}
                   className="h-8 text-sm"
                 />
@@ -289,8 +329,8 @@ export function AppShell() {
                 size="sm"
                 className={`w-full justify-start gap-2 text-left font-normal ${
                   apiKey
-                    ? "border-green-300 text-green-700"
-                    : "border-amber-300 text-amber-700"
+                    ? 'border-green-300 text-green-700'
+                    : 'border-amber-300 text-amber-700'
                 }`}
               >
                 {apiKey ? (
@@ -299,7 +339,7 @@ export function AppShell() {
                   <Key className="h-3.5 w-3.5" />
                 )}
                 <span className="truncate text-xs">
-                  {apiKey ? "API key set" : "Set OpenAI Key"}
+                  {apiKey ? 'API key set' : 'Set OpenAI Key'}
                 </span>
               </Button>
             </PopoverTrigger>
@@ -313,7 +353,7 @@ export function AppShell() {
                 </p>
                 <div className="relative">
                   <Input
-                    type={showKey ? "text" : "password"}
+                    type={showKey ? 'text' : 'password'}
                     placeholder="sk-..."
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
@@ -323,7 +363,7 @@ export function AppShell() {
                     type="button"
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     onClick={() => setShowKey(!showKey)}
-                    aria-label={showKey ? "Hide key" : "Show key"}
+                    aria-label={showKey ? 'Hide key' : 'Show key'}
                   >
                     {showKey ? (
                       <EyeOff className="h-3.5 w-3.5" />
@@ -337,7 +377,7 @@ export function AppShell() {
                     variant="ghost"
                     size="sm"
                     className="self-start text-xs text-destructive hover:text-destructive"
-                    onClick={() => setApiKey("")}
+                    onClick={() => setApiKey('')}
                   >
                     Clear key
                   </Button>

@@ -1,22 +1,22 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Play, Loader2, Clock } from "lucide-react";
-import { toast } from "sonner";
-import { apiFetch } from "@/lib/api";
-import { useWorkbench } from "@/lib/store";
-import type { Run, RunResult, EvalResult } from "@/lib/types";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useMemo } from 'react';
+import { Play, Loader2, Clock } from 'lucide-react';
+import { toast } from 'sonner';
+import { apiFetch } from '@/lib/api';
+import { useWorkbench } from '@/lib/store';
+import type { Run, RunResult, EvalResult } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
+} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface RunLauncherProps {
   projectId: string;
@@ -46,9 +46,55 @@ export function RunLauncher({
   const evals = getEvalsForProject(projectId);
   const latestSpec = getLatestSpec(projectId);
 
-  const [selectedPromptId, setSelectedPromptId] = useState<string>("");
+  const [selectedPromptId, setSelectedPromptId] = useState<string>('');
   const [selectedEvalIds, setSelectedEvalIds] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+
+  // Derive sorted spec versions (ascending) and evals per version (name desc)
+  const specVersions = useMemo(() => {
+    const versions = [...new Set(evals.map((e) => e.specVersion))].sort(
+      (a, b) => a - b,
+    );
+    return versions;
+  }, [evals]);
+
+  const evalsByVersion = useMemo(() => {
+    const map = new Map<number, typeof evals>();
+    for (const v of specVersions) {
+      const vEvals = evals
+        .filter((e) => e.specVersion === v)
+        .sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+        );
+      if (vEvals.length > 0) map.set(v, vEvals);
+    }
+    return map;
+  }, [evals, specVersions]);
+
+  function isAllSelected(version: number) {
+    const vEvals = evalsByVersion.get(version) ?? [];
+    return (
+      vEvals.length > 0 && vEvals.every((e) => selectedEvalIds.includes(e.id))
+    );
+  }
+
+  function isSomeSelected(version: number) {
+    const vEvals = evalsByVersion.get(version) ?? [];
+    return (
+      vEvals.some((e) => selectedEvalIds.includes(e.id)) &&
+      !isAllSelected(version)
+    );
+  }
+
+  function toggleAllInColumn(version: number) {
+    const vEvals = evalsByVersion.get(version) ?? [];
+    const vIds = vEvals.map((e) => e.id);
+    if (isAllSelected(version)) {
+      setSelectedEvalIds((prev) => prev.filter((id) => !vIds.includes(id)));
+    } else {
+      setSelectedEvalIds((prev) => [...new Set([...prev, ...vIds])]);
+    }
+  }
 
   function toggleEval(evalId: string) {
     setSelectedEvalIds((prev) =>
@@ -60,7 +106,7 @@ export function RunLauncher({
 
   async function handleRun() {
     if (!selectedPromptId || cases.length === 0) {
-      toast.error("Select a prompt and ensure you have dataset cases.");
+      toast.error('Select a prompt and ensure you have dataset cases.');
       return;
     }
 
@@ -70,9 +116,9 @@ export function RunLauncher({
     setIsRunning(true);
 
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     };
-    if (apiKey) headers["x-api-key"] = apiKey;
+    if (apiKey) headers['x-api-key'] = apiKey;
 
     const run: Run = {
       id: crypto.randomUUID(),
@@ -81,7 +127,7 @@ export function RunLauncher({
       datasetCaseIds: cases.map((c) => c.id),
       evalIds: selectedEvalIds,
       specVersion: latestSpec?.version ?? 0,
-      status: "running",
+      status: 'running',
       createdAt: new Date().toISOString(),
     };
     await addRun(run);
@@ -90,8 +136,8 @@ export function RunLauncher({
       // Run prompt on each case
       const results: RunResult[] = [];
       for (const c of cases) {
-        const res = await apiFetch("/api/ai/run-prompt", {
-          method: "POST",
+        const res = await apiFetch('/api/ai/run-prompt', {
+          method: 'POST',
           headers,
           body: JSON.stringify({
             systemPrompt: prompt.content,
@@ -119,8 +165,8 @@ export function RunLauncher({
         for (const result of results) {
           const caseData = cases.find((c) => c.id === result.datasetCaseId);
           for (const evalDef of evalDefs) {
-            const res = await fetch("/api/ai/run-eval", {
-              method: "POST",
+            const res = await fetch('/api/ai/run-eval', {
+              method: 'POST',
               headers,
               body: JSON.stringify({
                 evalDefinition: evalDef,
@@ -146,10 +192,10 @@ export function RunLauncher({
         await addEvalResults(evalResults);
       }
 
-      await updateRun({ ...run, status: "completed" });
+      await updateRun({ ...run, status: 'completed' });
       toast.success(`Run completed: ${results.length} cases processed`);
     } catch {
-      await updateRun({ ...run, status: "failed" });
+      await updateRun({ ...run, status: 'failed' });
       // apiFetch already shows toast
     } finally {
       setIsRunning(false);
@@ -198,7 +244,7 @@ export function RunLauncher({
 
               <div>
                 <label className="mb-2 block text-sm font-medium">
-                  Dataset: {cases.length} case{cases.length !== 1 ? "s" : ""}
+                  Dataset: {cases.length} case{cases.length !== 1 ? 's' : ''}
                 </label>
                 <p className="text-xs text-muted-foreground">
                   All cases in the dataset will be used. Filter support coming
@@ -211,22 +257,60 @@ export function RunLauncher({
                   <label className="mb-2 block text-sm font-medium">
                     Evals to run
                   </label>
-                  <div className="flex flex-col gap-2">
-                    {evals.map((e) => (
-                      <label
-                        key={e.id}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <Checkbox
-                          checked={selectedEvalIds.includes(e.id)}
-                          onCheckedChange={() => toggleEval(e.id)}
-                        />
-                        <span>{e.name}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          {e.scoreMode === "pass_fail" ? "Pass/Fail" : "1-5"}
-                        </Badge>
-                      </label>
-                    ))}
+                  <div className="overflow-hidden rounded-md border">
+                    <div className="flex divide-x">
+                      {specVersions.map((v) => {
+                        const vEvals = evalsByVersion.get(v) ?? [];
+                        if (vEvals.length === 0) return null;
+                        const allSel = isAllSelected(v);
+                        const someSel = isSomeSelected(v);
+                        return (
+                          <div key={v} className="min-w-0 flex-1">
+                            {/* Column header */}
+                            <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-2">
+                              <Checkbox
+                                checked={
+                                  allSel || (someSel ? 'indeterminate' : false)
+                                }
+                                onCheckedChange={() => toggleAllInColumn(v)}
+                                aria-label={`Select all evals for spec v${v}`}
+                              />
+                              <span className="text-xs font-semibold text-muted-foreground">
+                                Spec v{v}
+                              </span>
+                            </div>
+                            {/* Column rows */}
+                            <div className="flex flex-col divide-y">
+                              {vEvals.map((e) => (
+                                <label
+                                  key={e.id}
+                                  className="flex cursor-pointer items-start gap-2 px-3 py-2 text-sm hover:bg-secondary/30"
+                                >
+                                  <Checkbox
+                                    className="mt-0.5 shrink-0"
+                                    checked={selectedEvalIds.includes(e.id)}
+                                    onCheckedChange={() => toggleEval(e.id)}
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <span className="block truncate">
+                                      {e.name}
+                                    </span>
+                                    <Badge
+                                      variant="secondary"
+                                      className="mt-0.5 text-xs"
+                                    >
+                                      {e.scoreMode === 'pass_fail'
+                                        ? 'Pass/Fail'
+                                        : '1-5'}
+                                    </Badge>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
@@ -241,7 +325,7 @@ export function RunLauncher({
                 ) : (
                   <Play className="mr-2 h-4 w-4" />
                 )}
-                {isRunning ? "Running..." : "Launch Run"}
+                {isRunning ? 'Running...' : 'Launch Run'}
               </Button>
             </CardContent>
           </Card>
@@ -274,11 +358,11 @@ export function RunLauncher({
                       </div>
                       <Badge
                         variant={
-                          r.status === "completed"
-                            ? "secondary"
-                            : r.status === "running"
-                              ? "outline"
-                              : "destructive"
+                          r.status === 'completed'
+                            ? 'secondary'
+                            : r.status === 'running'
+                              ? 'outline'
+                              : 'destructive'
                         }
                         className="text-xs"
                       >
