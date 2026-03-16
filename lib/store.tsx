@@ -37,6 +37,22 @@ const defaultData: WorkbenchData = {
 
 type Action =
   | { type: "SET_DATA"; data: WorkbenchData }
+  | { type: "SET_PROJECTS"; projects: Project[] }
+  | {
+      type: "MERGE_PROJECT_DATA";
+      projectId: string;
+      specVersions: SpecVersion[];
+      datasetCases: DatasetCase[];
+      prompts: Prompt[];
+      evalDefinitions: EvalDefinition[];
+      runs: Run[];
+    }
+  | {
+      type: "MERGE_RUN_DETAILS";
+      runId: string;
+      runResults: RunResult[];
+      evalResults: EvalResult[];
+    }
   | { type: "ADD_PROJECT"; project: Project }
   | { type: "UPDATE_PROJECT"; project: Project }
   | { type: "DELETE_PROJECT"; projectId: string }
@@ -62,6 +78,59 @@ function reducer(state: WorkbenchData, action: Action): WorkbenchData {
   switch (action.type) {
     case "SET_DATA":
       return action.data;
+
+    case "SET_PROJECTS":
+      return { ...state, projects: action.projects };
+
+    case "MERGE_PROJECT_DATA": {
+      const pid = action.projectId;
+      return {
+        ...state,
+        specVersions: [
+          ...state.specVersions.filter((s) => s.projectId !== pid),
+          ...action.specVersions,
+        ],
+        datasetCases: [
+          ...state.datasetCases.filter((d) => d.projectId !== pid),
+          ...action.datasetCases,
+        ],
+        prompts: [
+          ...state.prompts.filter((p) => p.projectId !== pid),
+          ...action.prompts,
+        ],
+        evalDefinitions: [
+          ...state.evalDefinitions.filter((e) => e.projectId !== pid),
+          ...action.evalDefinitions,
+        ],
+        runs: [
+          ...state.runs.filter((r) => r.projectId !== pid),
+          ...action.runs,
+        ],
+      };
+    }
+
+    case "MERGE_RUN_DETAILS": {
+      const oldResultIds = new Set(
+        state.runResults
+          .filter((r) => r.runId === action.runId)
+          .map((r) => r.id),
+      );
+      const newResultIds = new Set(action.runResults.map((r) => r.id));
+      const allResultIds = new Set([...oldResultIds, ...newResultIds]);
+      return {
+        ...state,
+        runResults: [
+          ...state.runResults.filter((r) => r.runId !== action.runId),
+          ...action.runResults,
+        ],
+        evalResults: [
+          ...state.evalResults.filter(
+            (e) => !allResultIds.has(e.runResultId),
+          ),
+          ...action.evalResults,
+        ],
+      };
+    }
 
     case "ADD_PROJECT":
       return { ...state, projects: [...state.projects, action.project] };
@@ -194,6 +263,10 @@ function reducer(state: WorkbenchData, action: Action): WorkbenchData {
 interface WorkbenchContextValue {
   data: WorkbenchData;
   isLoading: boolean;
+  isProjectLoading: boolean;
+  isRunDetailsLoading: boolean;
+  loadProjectData: (projectId: string) => Promise<void>;
+  loadRunDetails: (runId: string) => Promise<void>;
   // Project
   createProject: (name: string) => Promise<Project>;
   updateProject: (project: Project) => Promise<void>;
@@ -254,81 +327,85 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   const initialized = useRef(false);
   const [apiKey, setApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isProjectLoading, setIsProjectLoading] = useState(false);
+  const [isRunDetailsLoading, setIsRunDetailsLoading] = useState(false);
+  const loadedProjects = useRef(new Set<string>());
+  const loadedRuns = useRef(new Set<string>());
 
-  // Load all data from API on mount
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
-      loadAllData();
+      loadProjects();
     }
   }, []);
 
-  const loadAllData = async () => {
+  const loadProjects = async () => {
     try {
       setIsLoading(true);
       const projects = await fetch("/api/data/projects").then((r) => r.json());
-
-      const allData: WorkbenchData = {
-        projects,
-        specVersions: [],
-        datasetCases: [],
-        prompts: [],
-        evalDefinitions: [],
-        runs: [],
-        runResults: [],
-        evalResults: [],
-      };
-
-      // Load data for each project
-      for (const project of projects) {
-        const [specVersions, datasetCases, prompts, evalDefinitions, runs] =
-          await Promise.all([
-            fetch(`/api/data/spec-versions?projectId=${project.id}`).then((r) =>
-              r.json(),
-            ),
-            fetch(`/api/data/dataset-cases?projectId=${project.id}`).then((r) =>
-              r.json(),
-            ),
-            fetch(`/api/data/prompts?projectId=${project.id}`).then((r) =>
-              r.json(),
-            ),
-            fetch(`/api/data/eval-definitions?projectId=${project.id}`).then(
-              (r) => r.json(),
-            ),
-            fetch(`/api/data/runs?projectId=${project.id}`).then((r) =>
-              r.json(),
-            ),
-          ]);
-
-        allData.specVersions.push(...specVersions);
-        allData.datasetCases.push(...datasetCases);
-        allData.prompts.push(...prompts);
-        allData.evalDefinitions.push(...evalDefinitions);
-        allData.runs.push(...runs);
-
-        // Load run results and eval results for each run
-        for (const run of runs) {
-          const [runResults, evalResults] = await Promise.all([
-            fetch(`/api/data/run-results?runId=${run.id}`).then((r) =>
-              r.json(),
-            ),
-            fetch(`/api/data/eval-results?runId=${run.id}`).then((r) =>
-              r.json(),
-            ),
-          ]);
-
-          allData.runResults.push(...runResults);
-          allData.evalResults.push(...evalResults);
-        }
-      }
-
-      dispatch({ type: "SET_DATA", data: allData });
+      dispatch({ type: "SET_PROJECTS", projects });
     } catch (error) {
-      console.error("Error loading data:", error);
+      console.error("Error loading projects:", error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const loadProjectData = useCallback(async (projectId: string) => {
+    if (loadedProjects.current.has(projectId)) return;
+    loadedProjects.current.add(projectId);
+    setIsProjectLoading(true);
+    try {
+      const [specVersions, datasetCases, prompts, evalDefinitions, runs] =
+        await Promise.all([
+          fetch(`/api/data/spec-versions?projectId=${projectId}`).then((r) =>
+            r.json(),
+          ),
+          fetch(`/api/data/dataset-cases?projectId=${projectId}`).then((r) =>
+            r.json(),
+          ),
+          fetch(`/api/data/prompts?projectId=${projectId}`).then((r) =>
+            r.json(),
+          ),
+          fetch(`/api/data/eval-definitions?projectId=${projectId}`).then(
+            (r) => r.json(),
+          ),
+          fetch(`/api/data/runs?projectId=${projectId}`).then((r) => r.json()),
+        ]);
+      dispatch({
+        type: "MERGE_PROJECT_DATA",
+        projectId,
+        specVersions,
+        datasetCases,
+        prompts,
+        evalDefinitions,
+        runs,
+      });
+    } catch (error) {
+      loadedProjects.current.delete(projectId);
+      console.error("Error loading project data:", error);
+    } finally {
+      setIsProjectLoading(false);
+    }
+  }, []);
+
+  const loadRunDetails = useCallback(async (runId: string) => {
+    if (loadedRuns.current.has(runId)) return;
+    loadedRuns.current.add(runId);
+    setIsRunDetailsLoading(true);
+    try {
+      const [runResults, evalResults] = await Promise.all([
+        fetch(`/api/data/run-results?runId=${runId}`).then((r) => r.json()),
+        fetch(`/api/data/eval-results?runId=${runId}`).then((r) => r.json()),
+      ]);
+      dispatch({ type: "MERGE_RUN_DETAILS", runId, runResults, evalResults });
+    } catch (error) {
+      loadedRuns.current.delete(runId);
+      console.error("Error loading run details:", error);
+    } finally {
+      setIsRunDetailsLoading(false);
+    }
+  }, []);
 
   // ---- Project ----
   const createProject = useCallback(async (name: string): Promise<Project> => {
@@ -785,6 +862,10 @@ export function WorkbenchProvider({ children }: { children: React.ReactNode }) {
   const value: WorkbenchContextValue = {
     data,
     isLoading,
+    isProjectLoading,
+    isRunDetailsLoading,
+    loadProjectData,
+    loadRunDetails,
     createProject,
     updateProject,
     deleteProject,

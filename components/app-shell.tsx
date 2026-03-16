@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   FileText,
   Database,
@@ -15,6 +15,7 @@ import {
   Eye,
   EyeOff,
   Pin,
+  Loader2,
 } from 'lucide-react';
 import { useWorkbench } from '@/lib/store';
 import type { SectionId } from '@/lib/types';
@@ -80,14 +81,21 @@ const NAV_ITEMS: { id: SectionId; label: string; icon: React.ElementType }[] = [
 export function AppShell() {
   const {
     data,
+    isLoading,
+    isProjectLoading,
     createProject,
     deleteProject,
+    loadProjectData,
     apiKey,
     setApiKey,
     getPinnedSpec,
   } = useWorkbench();
   const [activeSection, setActiveSection] = useState<SectionId>('specs');
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeProjectId) loadProjectData(activeProjectId);
+  }, [activeProjectId, loadProjectData]);
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [projectNameError, setProjectNameError] = useState('');
@@ -153,6 +161,19 @@ export function AppShell() {
   }
 
   function renderContent() {
+    if (isLoading) {
+      return (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Loading projects...
+            </p>
+          </div>
+        </div>
+      );
+    }
+
     if (!activeProject) {
       return (
         <div className="flex flex-1 items-center justify-center">
@@ -171,6 +192,19 @@ export function AppShell() {
               <Plus className="mr-2 h-4 w-4" />
               New Project
             </Button>
+          </div>
+        </div>
+      );
+    }
+
+    if (isProjectLoading) {
+      return (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Loading project data...
+            </p>
           </div>
         </div>
       );
