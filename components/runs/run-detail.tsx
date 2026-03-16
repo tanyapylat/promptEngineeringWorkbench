@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Sparkles, Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
@@ -43,9 +43,15 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
     addSpecVersion,
     updateSpecVersion,
     updateRunResult,
+    loadRunDetails,
+    isRunDetailsLoading,
     data,
     apiKey,
   } = useWorkbench();
+
+  useEffect(() => {
+    loadRunDetails(run.id);
+  }, [run.id, loadRunDetails]);
 
   const [isImproving, setIsImproving] = useState(false);
   const [editingLabelsResultId, setEditingLabelsResultId] = useState<
@@ -244,6 +250,16 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
       </div>
 
       <div className="flex-1 overflow-auto p-6">
+        {isRunDetailsLoading && results.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center py-20">
+            <div className="flex flex-col items-center gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Loading run results...
+              </p>
+            </div>
+          </div>
+        ) : (
         <div className="flex flex-col gap-6">
           {/* Aggregated stats */}
           {evalsByDef.size > 0 && (
@@ -491,6 +507,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
             </TableBody>
           </Table>
         </div>
+        )}
       </div>
     </div>
   );
