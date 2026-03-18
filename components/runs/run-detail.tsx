@@ -25,6 +25,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { AiLabelingAssistant } from './ai-labeling-assistant';
+import { ResultDetailSheet } from './result-detail-sheet';
 
 interface RunDetailProps {
   run: Run;
@@ -54,6 +55,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
   }, [run.id, loadRunDetails]);
 
   const [isImproving, setIsImproving] = useState(false);
+  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
   const [editingLabelsResultId, setEditingLabelsResultId] = useState<
     string | null
   >(null);
@@ -337,6 +339,7 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                 <TableHead className="w-12">#</TableHead>
                 <TableHead>Input</TableHead>
                 <TableHead>Output</TableHead>
+                <TableHead className="w-24">Source</TableHead>
                 <TableHead className="min-w-[120px]">Label</TableHead>
                 {activeEvalDefs.map((e) => (
                   <TableHead key={e.id} className="w-24 text-center">
@@ -361,7 +364,11 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                 );
 
                 return (
-                  <TableRow key={r.id}>
+                  <TableRow
+                    key={r.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setSelectedResultId(r.id)}
+                  >
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {i + 1}
                     </TableCell>
@@ -400,6 +407,20 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] capitalize ${
+                          caseData?.source === 'synthetic'
+                            ? 'bg-violet-100 text-violet-700'
+                            : caseData?.source === 'manual'
+                              ? 'bg-sky-100 text-sky-700'
+                              : ''
+                        }`}
+                      >
+                        {caseData?.source ?? '—'}
+                      </Badge>
                     </TableCell>
                     <TableCell
                       className="min-w-[120px]"
@@ -509,6 +530,17 @@ export function RunDetail({ run, projectId, onBack }: RunDetailProps) {
         </div>
         )}
       </div>
+
+      <ResultDetailSheet
+        resultId={selectedResultId}
+        results={results}
+        cases={cases}
+        evalResults={evalResults}
+        activeEvalDefs={activeEvalDefs}
+        onClose={() => setSelectedResultId(null)}
+        onNavigate={setSelectedResultId}
+        onUpdateResult={updateRunResult}
+      />
     </div>
   );
 }
