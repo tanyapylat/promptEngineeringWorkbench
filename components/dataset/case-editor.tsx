@@ -79,12 +79,12 @@ export function CaseEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{initialData ? "Edit Case" : "Add Case"}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 overflow-y-auto min-h-0 pr-1">
           <div>
             <label className="mb-1 block text-sm font-medium">
               Input (JSON)
@@ -96,7 +96,7 @@ export function CaseEditorDialog({
                 setJsonError("");
               }}
               rows={6}
-              className="font-mono text-sm"
+              className="font-mono text-sm max-h-[40vh] resize-y"
               placeholder='{ "text": "..." }'
             />
             {jsonError && (
@@ -112,7 +112,7 @@ export function CaseEditorDialog({
               value={expectedOutput}
               onChange={(e) => setExpectedOutput(e.target.value)}
               rows={3}
-              className="font-mono text-sm"
+              className="font-mono text-sm max-h-[30vh] resize-y"
               placeholder="Expected LLM output..."
             />
           </div>
