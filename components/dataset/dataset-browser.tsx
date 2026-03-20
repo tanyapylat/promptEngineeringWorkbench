@@ -109,12 +109,12 @@ export function DatasetBrowser({ projectId }: { projectId: string }) {
 
       const data = await res.json();
       const newCases: DatasetCase[] = data.cases.map(
-        (c: { input: Record<string, unknown>; expectedOutput?: string }) => ({
+        (c: { input: Record<string, unknown>; expectedOutput?: string; labels?: string[] }) => ({
           id: crypto.randomUUID(),
           projectId,
           input: c.input,
           expectedOutput: c.expectedOutput,
-          labels: [],
+          labels: Array.isArray(c.labels) ? c.labels : [],
           createdFromSpecVersion: pinnedSpec.version,
           source: "synthetic" as const,
           createdAt: new Date().toISOString(),

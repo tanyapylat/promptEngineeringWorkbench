@@ -3,7 +3,7 @@ import { GENERATE_DATASET_SYSTEM } from "@/lib/prompts";
 import { getModel } from "@/lib/ai";
 
 const CASES_RESPONSE_PREFIX =
-  'Return only valid JSON with a single object containing a "cases" array. Each case has "input" (object) and optional "expectedOutput" (string). No markdown or explanation.\n\n';
+  'Return only valid JSON with a single object containing a "cases" array. Each case has "input" (object), optional "expectedOutput" (string), and "labels" (string array). No markdown or explanation.\n\n';
 
 export async function POST(req: Request) {
   const apiKey = req.headers.get("x-api-key") || undefined;
@@ -35,6 +35,7 @@ export async function POST(req: Request) {
     let cases: Array<{
       input: Record<string, unknown>;
       expectedOutput?: string | null;
+      labels: string[];
     }> = [];
     try {
       const raw = text
@@ -56,6 +57,9 @@ export async function POST(req: Request) {
               typeof item.expectedOutput === "string"
                 ? item.expectedOutput
                 : null,
+            labels: Array.isArray(item.labels)
+              ? (item.labels as unknown[]).filter((l): l is string => typeof l === "string")
+              : [],
           };
         });
       }
