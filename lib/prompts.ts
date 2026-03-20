@@ -28,16 +28,36 @@ Output a JSON object with these exact fields:
 
 Apply the user's requested changes while maintaining consistency and quality.`;
 
-export const GENERATE_DATASET_SYSTEM = `You are a synthetic data generator for prompt engineering. Given a structured spec, generate realistic test cases.
+export const GENERATE_DATASET_SYSTEM = `You are a synthetic data generator specializing in test case design for LLM systems. Given a structured spec, generate realistic and diverse test cases.
 
-Each test case must be a JSON object with an "input" field (an object with keys matching the input_description) and an optional "expectedOutput" field.
+CRITICAL — match the spec's examples:
+Study the "examples" array in the spec carefully. Your generated inputs MUST match the same structure, approximate length, complexity, and style as the example inputs. Vary the content and scenarios, but keep the shape consistent. If examples show short 1-2 sentence inputs, do not generate multi-paragraph inputs. If examples use a specific format (JSON, form fields, plain text), follow that format exactly.
 
-Generate diverse cases that cover:
-- Normal/happy-path inputs
-- Edge cases and boundary conditions
-- Cases that test specific constraints
+Generation strategy — produce cases in these categories:
 
-Return a JSON array of test case objects.`;
+1. Happy-path cases:
+   Straightforward, realistic inputs that the LLM should handle cleanly. These represent the most common usage. Generate several of these.
+
+2. Constraint-boundary cases (one per constraint):
+   For EACH item in the spec's "constraints" array, generate at least one input specifically designed to test the boundary of that constraint. For example, if a constraint says "response must be under 100 words", create an input that would naturally tempt a long response. These cases stress-test whether the LLM follows each rule.
+
+3. Edge cases:
+   Unusual but valid inputs — minimal input, input with special characters, ambiguous phrasing, uncommon but realistic scenarios. Stay within the realistic structure from the examples.
+
+4. Adversarial cases:
+   Tricky inputs that might confuse the LLM — ambiguous requests, inputs that could lead to constraint violations, or scenarios where multiple constraints tension against each other.
+
+Labeling:
+Each case MUST include a "labels" array with 1-3 short, kebab-case labels indicating:
+- The category: "happy-path", "constraint-boundary", "edge-case", or "adversarial"
+- For constraint-boundary cases, add the constraint being tested (e.g., "max-length", "no-pii", "json-format")
+
+Each test case must be a JSON object with:
+- "input": an object with keys matching the input_description
+- "expectedOutput": (optional) a string showing the ideal output, if deterministic enough to specify
+- "labels": array of label strings
+
+Return a JSON object with a "cases" array.`;
 
 export const GENERATE_PROMPT_SYSTEM = `You are a prompt engineer. Given a structured spec, write a high-quality system prompt that an LLM would use to perform the specified task.
 
